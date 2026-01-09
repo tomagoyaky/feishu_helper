@@ -117,6 +117,274 @@ class FeishuDocAPI:
                     self.logger.error(f"响应内容: {e.response.text}")
             return None
     
+    def create_block(self, document_id: str, block_id: str, block_type: str, content: str = "", index: Optional[int] = -1) -> Optional[Dict[str, Any]]:
+        """
+        创建文档块
+        
+        :param document_id: 文档ID
+        :param block_id: 父块ID
+        :param block_type: 块类型
+        :param content: 块内容
+        :param index: 插入位置索引
+        :return: 创建的块信息
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/blocks/{block_id}/children"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        # 构建块数据
+        block_data = {
+            "block_type": getattr(self, f"_{block_type.upper()}_TYPE", 1),  # 假设文本块类型为1
+            "text": {
+                "elements": [{
+                    "text_run": {
+                        "content": content
+                    }
+                }]
+            }
+        }
+
+        data = {
+            "children": [block_data]
+        }
+        
+        if index != -1:
+            data["index"] = index
+
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"创建块失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求创建块异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+    
+    def create_descendant_block(self, document_id: str, block_id: str, descendants: List[Dict]) -> Optional[Dict[str, Any]]:
+        """
+        创建嵌套块
+        
+        :param document_id: 文档ID
+        :param block_id: 父块ID
+        :param descendants: 嵌套块列表
+        :return: 创建结果
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/blocks/{block_id}/descendant"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        data = {
+            "descendants": descendants
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"创建嵌套块失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求创建嵌套块异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+    
+    def update_block(self, document_id: str, block_id: str, content: str, revision_id: Optional[int] = -1) -> Optional[Dict[str, Any]]:
+        """
+        更新块的内容
+        
+        :param document_id: 文档ID
+        :param block_id: 块ID
+        :param content: 更新的内容
+        :param revision_id: 文档版本ID，默认-1表示最新版本
+        :return: 更新结果
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/blocks/{block_id}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        data = {
+            "document_revision_id": revision_id,
+            "text": {
+                "elements": [{
+                    "text_run": {
+                        "content": content
+                    }
+                }]
+            }
+        }
+
+        try:
+            response = requests.patch(url, headers=headers, json=data)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"更新块失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求更新块异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+    
+    def batch_update_blocks(self, document_id: str, updates: List[Dict], revision_id: Optional[int] = -1) -> Optional[Dict[str, Any]]:
+        """
+        批量更新块的内容
+        
+        :param document_id: 文档ID
+        :param updates: 更新内容列表，每个元素包含block_id和content
+        :param revision_id: 文档版本ID，默认-1表示最新版本
+        :return: 更新结果
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/blocks/batch_update"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        # 构建批量更新数据
+        block_updates = []
+        for update in updates:
+            block_id = update.get("block_id")
+            content = update.get("content", "")
+            
+            block_update = {
+                "block_id": block_id,
+                "text": {
+                    "elements": [{
+                        "text_run": {
+                            "content": content
+                        }
+                    }]
+                }
+            }
+            block_updates.append(block_update)
+
+        data = {
+            "document_revision_id": revision_id,
+            "block_updates": block_updates
+        }
+
+        try:
+            response = requests.patch(url, headers=headers, json=data)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"批量更新块失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求批量更新块异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+    
+    def delete_block(self, document_id: str, block_id: str, start_index: int, end_index: int, revision_id: Optional[int] = -1) -> Optional[Dict[str, Any]]:
+        """
+        删除块
+        
+        :param document_id: 文档ID
+        :param block_id: 父块ID
+        :param start_index: 开始索引
+        :param end_index: 结束索引
+        :param revision_id: 文档版本ID，默认-1表示最新版本
+        :return: 删除结果
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docx/v1/documents/{document_id}/blocks/{block_id}/children/batch_delete"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        data = {
+            "document_revision_id": revision_id,
+            "start_index": start_index,
+            "end_index": end_index
+        }
+
+        try:
+            response = requests.delete(url, headers=headers, json=data)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"删除块失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求删除块异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+    
     def get_document_info(self, document_id: str) -> Optional[Dict[str, Any]]:
         """
         获取文档信息
@@ -376,7 +644,7 @@ class FeishuDocAPI:
                 if basic_result.get("code") == 0:
                     return basic_result["data"]
                 else:
-                    self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {result.get('msg')}")
+                    self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {basic_result.get('msg')}")
                     return None
         except requests.exceptions.HTTPError as e:
             self.logger.error(f"请求电子表格数据HTTP错误，状态码: {response.status_code}，错误: {str(e)}")
@@ -396,7 +664,7 @@ class FeishuDocAPI:
             if basic_result.get("code") == 0:
                 return basic_result["data"]
             else:
-                self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {result.get('msg')}")
+                self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {basic_result.get('msg')}")
                 return None
         except Exception as basic_error:
             self.logger.error(f"请求电子表格基本信息也异常: {str(basic_error)}")

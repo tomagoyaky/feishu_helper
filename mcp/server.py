@@ -111,6 +111,250 @@ def create_feishu_document(title: str = "未命名文档", folder_token: Optiona
 
 
 @mcp.tool()
+def create_feishu_block(document_id: str, block_id: str, block_type: str, content: str = "", index: Optional[int] = -1, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    创建飞书文档块
+    :param document_id: 文档ID
+    :param block_id: 父块ID
+    :param block_type: 块类型
+    :param content: 块内容
+    :param index: 插入位置索引
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 创建的块信息
+    """
+    # 使用环境变量或提供的参数
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        # 初始化API
+        api = FeishuDocAPI()
+        
+        # 创建块
+        block_info = api.create_block(document_id=document_id, block_id=block_id, block_type=block_type, content=content, index=index)
+        
+        if block_info:
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "block_id": block_id,
+                "message": "块创建成功"
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "创建块失败"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def create_feishu_descendant_block(document_id: str, block_id: str, descendants: list, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    创建飞书嵌套块
+    :param document_id: 文档ID
+    :param block_id: 父块ID
+    :param descendants: 嵌套块列表
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 创建结果
+    """
+    # 使用环境变量或提供的参数
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        # 初始化API
+        api = FeishuDocAPI()
+        
+        # 创建嵌套块
+        result = api.create_descendant_block(document_id=document_id, block_id=block_id, descendants=descendants)
+        
+        if result:
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "block_id": block_id,
+                "message": "嵌套块创建成功"
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "创建嵌套块失败"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def update_feishu_block(document_id: str, block_id: str, content: str, revision_id: Optional[int] = -1, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    更新飞书块的内容
+    :param document_id: 文档ID
+    :param block_id: 块ID
+    :param content: 更新的内容
+    :param revision_id: 文档版本ID，默认-1表示最新版本
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 更新结果
+    """
+    # 使用环境变量或提供的参数
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        # 初始化API
+        api = FeishuDocAPI()
+        
+        # 更新块
+        result = api.update_block(document_id=document_id, block_id=block_id, content=content, revision_id=revision_id)
+        
+        if result:
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "block_id": block_id,
+                "message": "块更新成功"
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "更新块失败"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def batch_update_feishu_blocks(document_id: str, updates: list, revision_id: Optional[int] = -1, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    批量更新飞书块的内容
+    :param document_id: 文档ID
+    :param updates: 更新内容列表，每个元素包含block_id和content
+    :param revision_id: 文档版本ID，默认-1表示最新版本
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 更新结果
+    """
+    # 使用环境变量或提供的参数
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        # 初始化API
+        api = FeishuDocAPI()
+        
+        # 批量更新块
+        result = api.batch_update_blocks(document_id=document_id, updates=updates, revision_id=revision_id)
+        
+        if result:
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "message": "批量更新块成功"
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "批量更新块失败"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def delete_feishu_block(document_id: str, block_id: str, start_index: int, end_index: int, revision_id: Optional[int] = -1, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    删除飞书块
+    :param document_id: 文档ID
+    :param block_id: 父块ID
+    :param start_index: 开始索引
+    :param end_index: 结束索引
+    :param revision_id: 文档版本ID，默认-1表示最新版本
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 删除结果
+    """
+    # 使用环境变量或提供的参数
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        # 初始化API
+        api = FeishuDocAPI()
+        
+        # 删除块
+        result = api.delete_block(document_id=document_id, block_id=block_id, start_index=start_index, end_index=end_index, revision_id=revision_id)
+        
+        if result:
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "block_id": block_id,
+                "message": "块删除成功"
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "删除块失败"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
+
+@mcp.tool()
 def convert_feishu_link_to_markdown(feishu_url: str, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
     """
     从飞书链接直接转换为Markdown格式
