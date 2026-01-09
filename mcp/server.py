@@ -494,5 +494,104 @@ def get_document_info(doc_token: str, app_id: Optional[str] = None, app_secret: 
         }
 
 
+@mcp.tool()
+def get_document_blocks(doc_token: str, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    获取文档的所有块
+    :param doc_token: 文档token
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 文档块信息
+    """
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        api = FeishuDocAPI()
+        blocks_info = api.get_all_document_blocks(doc_token)
+        
+        if blocks_info:
+            return {
+                "status": "success",
+                "doc_token": doc_token,
+                "blocks": blocks_info.get("items", []),
+                "count": len(blocks_info.get("items", [])),
+                "message": f"成功获取文档的 {len(blocks_info.get('items', []))} 个块"
+            }
+        else:
+            return {
+                "status": "error",
+                "doc_token": doc_token,
+                "error": "无法获取文档块信息"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "doc_token": doc_token,
+            "error": str(e)
+        }
+
+
+@mcp.tool()
+def append_text_to_document(document_id: str, content: str, app_id: Optional[str] = None, app_secret: Optional[str] = None) -> dict:
+    """
+    向文档追加文本内容
+    :param document_id: 文档ID
+    :param content: 要追加的内容
+    :param app_id: 应用ID，如果不提供则使用环境变量
+    :param app_secret: 应用密钥，如果不提供则使用环境变量
+    :return: 操作结果
+    """
+    actual_app_id = app_id or os.getenv("APP_ID")
+    actual_app_secret = app_secret or os.getenv("APP_SECRET")
+    
+    if not actual_app_id or not actual_app_secret:
+        raise ValueError("需要提供app_id和app_secret，可通过参数或环境变量设置")
+    
+    try:
+        # 设置环境变量以供API使用
+        os.environ["FEISHU_APP_ID"] = actual_app_id
+        os.environ["FEISHU_APP_SECRET"] = actual_app_secret
+        
+        api = FeishuDocAPI()
+        
+        # 获取文档的根块ID（文档ID本身就是根块ID）
+        root_block_id = document_id
+        
+        # 创建文本块
+        result = api.create_block(
+            document_id=document_id,
+            block_id=root_block_id,
+            block_type="text",
+            content=content
+        )
+        
+        if result:
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "message": "内容追加成功"
+            }
+        else:
+            return {
+                "status": "error",
+                "document_id": document_id,
+                "error": "追加内容失败"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "document_id": document_id,
+            "error": str(e)
+        }
+
+
 if __name__ == "__main__":
     mcp.run()

@@ -138,17 +138,8 @@ class FeishuDocAPI:
             "Content-Type": "application/json; charset=utf-8"
         }
 
-        # 构建块数据
-        block_data = {
-            "block_type": getattr(self, f"_{block_type.upper()}_TYPE", 1),  # 假设文本块类型为1
-            "text": {
-                "elements": [{
-                    "text_run": {
-                        "content": content
-                    }
-                }]
-            }
-        }
+        # 根据块类型构建块数据
+        block_data = self._build_block_data(block_type, content)
 
         data = {
             "children": [block_data]
@@ -177,6 +168,83 @@ class FeishuDocAPI:
                 except:
                     self.logger.error(f"响应内容: {e.response.text}")
             return None
+    
+    def _build_block_data(self, block_type: str, content: str) -> Dict[str, Any]:
+        """
+        根据块类型构建块数据
+        
+        :param block_type: 块类型
+        :param content: 块内容
+        :return: 构建的块数据
+        """
+        # 定义块类型映射
+        block_types = {
+            "page": 1,      # 页面
+            "text": 2,      # 文本
+            "heading1": 3,  # 标题1
+            "heading2": 4,  # 标题2
+            "heading3": 5,  # 标题3
+            "heading4": 6,  # 标题4
+            "heading5": 7,  # 标题5
+            "heading6": 8,  # 标题6
+            "heading7": 9,  # 标题7
+            "heading8": 10, # 标题8
+            "heading9": 11, # 标题9
+            "bullet": 12,   # 无序列表
+            "ordered": 13,  # 有序列表
+            "code": 14,     # 代码块
+            "quote": 15,    # 引用
+            "todo": 17,     # 待办事项
+            "bitable": 18,  # 多维表格
+            "callout": 19,  # 高亮块
+            "chat_card": 20, # 会话卡片
+            "diagram": 21,  # 流程图
+            "divider": 22,  # 分割线
+            "file": 23,     # 文件
+            "grid": 24,     # 分栏
+            "grid_column": 25, # 分栏列
+            "iframe": 26,   # 内嵌网页
+            "image": 27,    # 图片
+            "isv": 28,      # 开放平台小组件
+            "mindnote": 29, # 思维笔记
+            "sheet": 30,    # 电子表格
+            "table": 31,    # 表格
+            "table_cell": 32, # 表格单元格
+            "view": 33,     # 视图
+            "quote_container": 34, # 引用容器
+            "task": 35,     # 任务
+            "okr": 36,      # OKR
+            "jira_issue": 41, # Jira问题
+            "wiki_catalog": 42, # Wiki子目录
+            "board": 43,    # 画板
+            "agenda": 44,   # 议程
+            "link_preview": 48 # 链接预览
+        }
+        
+        block_type_value = block_types.get(block_type.lower(), 2)  # 默认为文本块
+        block_data = {
+            "block_type": block_type_value
+        }
+        
+        # 根据块类型设置内容
+        if block_type in ["text", "heading1", "heading2", "heading3", "heading4", 
+                          "heading5", "heading6", "heading7", "heading8", "heading9", 
+                          "bullet", "ordered", "code", "quote", "todo"]:
+            block_data["text"] = {
+                "elements": [{
+                    "text_run": {
+                        "content": content
+                    }
+                }]
+            }
+        elif block_type == "divider":
+            # 分割线块是空结构体
+            block_data["divider"] = {}
+        elif block_type == "quote_container":
+            # 引用容器块也是空结构体
+            block_data["quote_container"] = {}
+        
+        return block_data
     
     def create_descendant_block(self, document_id: str, block_id: str, descendants: List[Dict]) -> Optional[Dict[str, Any]]:
         """
@@ -416,12 +484,14 @@ class FeishuDocAPI:
             self.logger.error(f"请求文档信息异常: {str(e)}")
             return None
     
-    def get_document_blocks(self, document_id: str, page_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    def get_document_blocks(self, document_id: str, page_token: Optional[str] = None, page_size: int = 500, document_revision_id: int = -1) -> Optional[Dict[str, Any]]:
         """
         获取文档块信息
         
         :param document_id: 文档ID
         :param page_token: 分页令牌
+        :param page_size: 分页大小
+        :param document_revision_id: 文档版本ID
         :return: 文档块信息
         """
         access_token = self.get_access_token()
@@ -434,7 +504,10 @@ class FeishuDocAPI:
             "Content-Type": "application/json; charset=utf-8"
         }
         
-        params = {"page_size": 100}
+        params = {
+            "page_size": min(page_size, 500),  # 最大值为500
+            "document_revision_id": document_revision_id
+        }
         if page_token:
             params["page_token"] = page_token
         
@@ -668,6 +741,7 @@ class FeishuDocAPI:
                 return None
         except Exception as basic_error:
             self.logger.error(f"请求电子表格基本信息也异常: {str(basic_error)}")
+            return None
 
     def get_doc_content(self, doc_token: str, doc_type: str = "docx") -> Optional[str]:
         """
