@@ -6,13 +6,43 @@ Markdown适配器
 import logging
 from typing import Dict, Any
 from ..interfaces import IFormatAdapter
-from ..process import (
-    TextHandler, TableHandler, HeadingHandler, ListHandler, 
-    CodeHandler, QuoteHandler, ImageHandler, DividerHandler,
-    ViewHandler, QuoteContainerHandler, TaskHandler, JiraIssueHandler,
-    WikiCatalogHandler, BoardHandler, AgendaHandler, AgendaItemHandler,
-    LinkPreviewHandler, SubPageListHandler, AitemplateHandler, SheetHandler
-)
+from ..process.heading_handler import HeadingHandler
+from ..process.list_handler import ListHandler
+from ..process.code_handler import CodeHandler
+from ..process.quote_handler import QuoteHandler
+from ..process.text_handler import TextHandler
+from ..process.divider_handler import DividerHandler
+from ..process.image_handler import ImageHandler
+from ..process.table_handler import TableHandler
+from ..process.sheet_handler import SheetHandler
+from ..process.view_handler import ViewHandler
+from ..process.quote_container_handler import QuoteContainerHandler
+from ..process.task_handler import TaskHandler
+from ..process.jira_issue_handler import JiraIssueHandler
+from ..process.wiki_catalog_handler import WikiCatalogHandler
+from ..process.board_handler import BoardHandler
+from ..process.agenda_handler import AgendaHandler
+from ..process.agenda_item_handler import AgendaItemHandler
+from ..process.link_preview_handler import LinkPreviewHandler
+from ..process.sub_page_list_handler import SubPageListHandler
+from ..process.aitemplate_handler import AitemplateHandler
+from ..process.other_handler import OtherHandler
+from ..process.bitable_handler import BitableHandler
+from ..process.file_handler import FileHandler
+from ..process.grid_handler import GridHandler
+from ..process.grid_column_handler import GridColumnHandler
+from ..process.iframe_handler import IFrameHandler
+from ..process.chat_card_handler import ChatCardHandler
+from ..process.diagram_handler import DiagramHandler
+from ..process.isv_handler import ISVHandler
+from ..process.mind_note_handler import MindNoteHandler
+from ..process.okr_handler import OKRHandler
+from ..process.agenda_item_title_handler import AgendaItemTitleHandler
+from ..process.agenda_item_content_handler import AgendaItemContentHandler
+from ..process.source_synced_handler import SourceSyncedHandler
+from ..process.reference_synced_handler import ReferenceSyncedHandler
+from ..process.undefined_handler import UndefinedHandler
+from ..process.document_widget_handler import DocumentWidgetHandler
 
 
 class MarkdownAdapter(IFormatAdapter):
@@ -61,157 +91,11 @@ class MarkdownAdapter(IFormatAdapter):
         blocks = content.get('items', [])
         markdown_lines = []
         
-        # 构建块索引，便于查找子块
-        block_index = {block['block_id']: block for block in blocks}
-        
-        # 预处理：建立ID到内容的映射（对于表格单元格引用）
-        id_to_content = {}
-        for block in blocks:
-            block_type = block.get('block_type')
-            # 为文本块建立ID映射
-            if block_type == 2:  # 文本块
-                elements = block.get('text', {}).get('elements', [])
-                text_parts = []
-                
-                for element in elements:
-                    if 'text_run' in element:
-                        content_val = element['text_run'].get('content', '')
-                        # 处理文本样式
-                        style = element['text_run'].get('text_element_style', {})
-                        if style:
-                            bold = style.get('bold', False)
-                            italic = style.get('italic', False)
-                            strikethrough = style.get('strikethrough', False)
-                            inline_code = style.get('inline_code', False)
-                            
-                            if bold:
-                                content_val = f"**{content_val}**"
-                            if italic:
-                                content_val = f"*{content_val}*"
-                            if strikethrough:
-                                content_val = f"~~{content_val}~~"
-                            if inline_code:
-                                content_val = f"`{content_val}`"
-                        
-                        text_parts.append(content_val)
-                
-                full_content = ''.join(text_parts)
-                if full_content:
-                    id_to_content[block['block_id']] = full_content
-            # 同时处理标题块
-            elif block_type in [3, 4, 5, 6, 7, 8, 9, 10, 11]:  # 各级标题
-                block_key_map = {
-                    3: 'heading1', 4: 'heading2', 5: 'heading3', 6: 'heading4',
-                    7: 'heading5', 8: 'heading6', 9: 'heading7', 10: 'heading8', 11: 'heading9'
-                }
-                block_key = block_key_map.get(block_type)
-                if block_key and block_key in block:
-                    elements = block[block_key].get('elements', [])
-                    text_parts = []
-                    
-                    for element in elements:
-                        if 'text_run' in element:
-                            content_val = element['text_run'].get('content', '')
-                            # 处理文本样式
-                            style = element['text_run'].get('text_element_style', {})
-                            if style:
-                                bold = style.get('bold', False)
-                                italic = style.get('italic', False)
-                                strikethrough = style.get('strikethrough', False)
-                                inline_code = style.get('inline_code', False)
-                                
-                                if bold:
-                                    content_val = f"**{content_val}**"
-                                if italic:
-                                    content_val = f"*{content_val}*"
-                                if strikethrough:
-                                    content_val = f"~~{content_val}~~"
-                                if inline_code:
-                                    content_val = f"`{content_val}`"
-                            
-                            text_parts.append(content_val)
-                    
-                    full_content = ''.join(text_parts)
-                    if full_content:
-                        id_to_content[block['block_id']] = full_content
-            # 同时处理引用块
-            elif block_type == 15:  # 引用
-                elements = block.get('quote', {}).get('elements', [])
-                text_parts = []
-                
-                for element in elements:
-                    if 'text_run' in element:
-                        content_val = element['text_run'].get('content', '')
-                        # 处理文本样式
-                        style = element['text_run'].get('text_element_style', {})
-                        if style:
-                            bold = style.get('bold', False)
-                            italic = style.get('italic', False)
-                            strikethrough = style.get('strikethrough', False)
-                            inline_code = style.get('inline_code', False)
-                            
-                            if bold:
-                                content_val = f"**{content_val}**"
-                            if italic:
-                                content_val = f"*{content_val}*"
-                            if strikethrough:
-                                content_val = f"~~{content_val}~~"
-                            if inline_code:
-                                content_val = f"`{content_val}`"
-                        
-                        text_parts.append(content_val)
-                
-                full_content = ''.join(text_parts)
-                if full_content:
-                    id_to_content[block['block_id']] = full_content
-            # 同时处理代码块
-            elif block_type == 14:  # 代码块
-                elements = block.get('code', {}).get('elements', [])
-                text_parts = []
-                
-                for element in elements:
-                    if 'text_run' in element:
-                        content_val = element['text_run'].get('content', '')
-                        text_parts.append(content_val)
-                
-                full_content = ''.join(text_parts)
-                if full_content:
-                    id_to_content[block['block_id']] = full_content
-            # 同时处理表格单元格
-            elif block_type == 32:  # 表格单元格
-                elements = block.get('table_cell', {}).get('elements', [])
-                text_parts = []
-                
-                for element in elements:
-                    if 'text_run' in element:
-                        content_val = element['text_run'].get('content', '')
-                        # 处理文本样式
-                        style = element['text_run'].get('text_element_style', {})
-                        if style:
-                            bold = style.get('bold', False)
-                            italic = style.get('italic', False)
-                            strikethrough = style.get('strikethrough', False)
-                            inline_code = style.get('inline_code', False)
-                            
-                            if bold:
-                                content_val = f"**{content_val}**"
-                            if italic:
-                                content_val = f"*{content_val}*"
-                            if strikethrough:
-                                content_val = f"~~{content_val}~~"
-                            if inline_code:
-                                content_val = f"`{content_val}`"
-                        
-                        text_parts.append(content_val)
-                
-                full_content = ''.join(text_parts)
-                if full_content:
-                    id_to_content[block['block_id']] = full_content
-        
         # 遍历所有块，识别表格和独立文本块
         text_blocks = []
         for i, block in enumerate(blocks):
             block_type = block.get('block_type')
+            print('-> i:', i, 'block_type:', block_type)
             # 页面块
             if block_type == 1:  # 页面(Page)
                 HeadingHandler.process_page(block, markdown_lines)
@@ -238,49 +122,40 @@ class MarkdownAdapter(IFormatAdapter):
                 TextHandler.process_todo(block, markdown_lines)
             # 多维表格
             elif block_type == 18:  # 多维表格
-                markdown_lines.append("<!-- 多维表格块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                BitableHandler.process_bitable(block, markdown_lines)
             # 高亮块
             elif block_type == 19:  # 高亮块
                 TextHandler.process_callout(block, markdown_lines)
             # 会话卡片
             elif block_type == 20:  # 会话卡片
-                markdown_lines.append("<!-- 会话卡片块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                ChatCardHandler.process_chat_card(block, markdown_lines)
             # 流程图 & UML
             elif block_type == 21:  # 流程图 & UML
-                markdown_lines.append("<!-- 流程图 & UML 块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                DiagramHandler.process_diagram(block, markdown_lines)
             # 分割线
             elif block_type == 22:  # 分割线
                 DividerHandler.process_divider(markdown_lines)
             # 文件
             elif block_type == 23:  # 文件
-                markdown_lines.append("<!-- 文件块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                FileHandler.process_file(block, markdown_lines)
             # 分栏
             elif block_type == 24:  # 分栏
-                markdown_lines.append("<!-- 分栏块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                GridHandler.process_grid(block, markdown_lines)
             # 分栏列
             elif block_type == 25:  # 分栏列
-                markdown_lines.append("<!-- 分栏列块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                GridColumnHandler.process_grid_column(block, markdown_lines)
             # 内嵌 Block
             elif block_type == 26:  # 内嵌 Block
-                markdown_lines.append("<!-- 内嵌 Block 块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                IFrameHandler.process_iframe(block, markdown_lines)
             # 图片
             elif block_type == 27:  # 图片
                 ImageHandler.process_image(block, markdown_lines)
             # 开放平台小组件
             elif block_type == 28:  # 开放平台小组件
-                markdown_lines.append("<!-- 开放平台小组件块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                ISVHandler.process_isv(block, markdown_lines)
             # 思维笔记
             elif block_type == 29:  # 思维笔记
-                markdown_lines.append("<!-- 思维笔记块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                MindNoteHandler.process_mind_note(block, markdown_lines)
             # 电子表格（外部资源，需要权限检查）
             elif block_type == 30:  # 电子表格
                 # 使用 SheetHandler 处理电子表格，内部已进行权限检查
@@ -300,12 +175,10 @@ class MarkdownAdapter(IFormatAdapter):
                 TaskHandler.process_task(block, markdown_lines)
             # OKR
             elif 36 <= block_type <= 39:  # OKR 相关块
-                markdown_lines.append("<!-- OKR 块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                OKRHandler.process_okr(block, markdown_lines)
             # 新版文档小组件
             elif block_type == 40:  # 新版文档小组件
-                markdown_lines.append("<!-- 新版文档小组件块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                DocumentWidgetHandler.process_document_widget(block, markdown_lines)
             # Jira问题
             elif block_type == 41:  # Jira问题
                 JiraIssueHandler.process_jira_issue(block, markdown_lines)
@@ -323,23 +196,19 @@ class MarkdownAdapter(IFormatAdapter):
                 AgendaItemHandler.process_agenda_item(block, markdown_lines)
             # 议程项标题
             elif block_type == 46:  # 议程项标题
-                markdown_lines.append("<!-- 议程项标题块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                AgendaItemTitleHandler.process_agenda_item_title(block, markdown_lines)
             # 议程项内容
             elif block_type == 47:  # 议程项内容
-                markdown_lines.append("<!-- 议程项内容块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                AgendaItemContentHandler.process_agenda_item_content(block, markdown_lines)
             # 链接预览
             elif block_type == 48:  # 链接预览
                 LinkPreviewHandler.process_link_preview(block, markdown_lines)
             # 源同步块
             elif block_type == 49:  # 源同步块
-                markdown_lines.append("<!-- 源同步块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                SourceSyncedHandler.process_source_synced(block, markdown_lines)
             # 引用同步块
             elif block_type == 50:  # 引用同步块
-                markdown_lines.append("<!-- 引用同步块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                ReferenceSyncedHandler.process_reference_synced(block, markdown_lines)
             # 子页面列表
             elif block_type == 51:  # 子页面列表
                 SubPageListHandler.process_sub_page_list(block, markdown_lines)
@@ -348,13 +217,10 @@ class MarkdownAdapter(IFormatAdapter):
                 AitemplateHandler.process_aitemplate(block, markdown_lines)
             # 未支持的块类型
             elif block_type == 999:  # 未支持
-                markdown_lines.append("<!-- 未支持的块类型 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                UndefinedHandler.process_undefined(block, markdown_lines)
             # 其他块类型可根据需要添加处理逻辑
             else:
-                # 对于未知的块类型，记录警告但不抛出异常
-                print(f"警告: 发现未处理的块类型 {block_type}")
-                markdown_lines.append(f"<!-- 未处理的块类型: {block_type} -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                # 对于未知的块类型，使用OtherHandler处理
+                OtherHandler.process_other(block, markdown_lines)
         
         return '\n'.join(markdown_lines)

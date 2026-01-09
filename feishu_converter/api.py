@@ -354,6 +354,52 @@ class FeishuDocAPI:
         except Exception as basic_error:
             self.logger.error(f"请求电子表格基本信息也异常: {str(basic_error)}")
 
+    def get_doc_content(self, doc_token: str, doc_type: str = "docx") -> Optional[str]:
+        """
+        使用通用接口获取文档内容
+        
+        :param doc_token: 文档token
+        :param doc_type: 文档类型，默认为docx
+        :return: 文档内容的Markdown格式
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docs/v1/content"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+        
+        params = {
+            "doc_token": doc_token,
+            "doc_type": doc_type,
+            "content_type": "markdown"
+        }
+
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                content = result["data"].get("content", "")
+                return content
+            else:
+                self.logger.error(f"获取文档内容失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求文档内容异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+
     def get_spreadsheet_sheets(self, spreadsheet_token: str) -> Optional[Dict[str, Any]]:
         """
         获取电子表格中的所有工作表信息
