@@ -54,11 +54,6 @@ class DocumentFetcher:
             "items": blocks_data["items"]
         }
         
-        # 检查是否有电子表格块，如果有，获取电子表格数据
-        spreadsheet_data = self._fetch_spreadsheet_data(blocks_data["items"])
-        if spreadsheet_data:
-            document_content["spreadsheet_data"] = spreadsheet_data
-        
         self.logger.info(f"成功获取文档内容: {document_info.get('title', 'Unknown')}")
         
         return document_content

@@ -3,14 +3,22 @@
 提供与飞书开放平台交互的各种API接口
 """
 
-import json
-import logging
-import os
 import requests
-from typing import Dict, Any, Optional
-from dotenv import load_dotenv
+import json
+import os
+import logging
+from enum import Enum
+from typing import Optional, Dict, Any, List
 
-load_dotenv()
+
+class PermissionType(Enum):
+    """资源类型枚举"""
+    DOC = "doc"           # 文档
+    SHEET = "sheet"       # 电子表格
+    BITABLE = "bitable"   # 多维表格
+    FILE = "file"         # 文件
+    DRIVE = "drive"       # 文件夹
+    WIKI = "wiki"         # 知识库
 
 
 class FeishuDocAPI:
@@ -154,7 +162,92 @@ class FeishuDocAPI:
             page_token = data.get("page_token")
         
         return {"items": all_items}
-    
+
+    def check_permission(self, token: str, token_type: PermissionType = PermissionType.SHEET, permission: str = "view") -> bool:
+        """
+        检查当前用户是否有权限访问特定资源
+        
+        :param token: 资源的token
+        :param token_type: 资源类型，默认为PermissionType.SHEET（电子表格）
+        :param permission: 权限类型，"view"（查看）、"edit"（编辑）或"share"（分享），默认为"view"
+        :return: 是否有权限
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return False
+
+        url = f"{self.BASE_URL}/drive/permission/member/permitted"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+        
+        payload = {
+            "token": token,
+            "type": token_type.value,
+            "perm": permission
+        }
+
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                is_permitted = result.get("data", {}).get("is_permitted", False)
+                return is_permitted
+            else:
+                self.logger.error(f"检查权限失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return False
+        except Exception as e:
+            self.logger.error(f"请求权限检查异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return False
+
+    def get_spreadsheet_info(self, spreadsheet_token: str, user_id_type: str = "open_id") -> Optional[Dict[str, Any]]:
+        """
+        获取电子表格信息
+        
+        :param spreadsheet_token: 电子表格token
+        :param user_id_type: 用户ID类型，默认为open_id
+        :return: 电子表格信息
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/sheets/v3/spreadsheets/{spreadsheet_token}?user_id_type={user_id_type}"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"获取电子表格信息失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求电子表格信息异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+
     def get_spreadsheet_data(self, spreadsheet_token: str, sheet_id: str = None) -> Optional[Dict[str, Any]]:
         """
         获取电子表格数据
@@ -226,8 +319,8 @@ class FeishuDocAPI:
             if result.get("code") == 0:
                 return result["data"]
             else:
-                self.logger.error(f"获取电子表格数据失败: {result}")
-                # 尝试获取电子表格基本信息
+                self.logger.error(f"获取电子表格数据失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                # 尝试获取电子表格基本信息 https://r3c0qt6yjw.feishu.cn/wiki/WIHiwPrOaiXA0Rk3VjCc8m7snoe#share-JrybdUxoqo5SPfx1KWicf2banSc
                 basic_info_url = f"{self.BASE_URL}/sheets/v3/spreadsheets/{actual_spreadsheet_token}"
                 basic_response = requests.get(basic_info_url, headers=headers)
                 basic_response.raise_for_status()
@@ -236,13 +329,16 @@ class FeishuDocAPI:
                 if basic_result.get("code") == 0:
                     return basic_result["data"]
                 else:
-                    self.logger.error(f"获取电子表格基本信息也失败: {basic_result}")
+                    self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {basic_result.get('msg')}")
                     return None
         except requests.exceptions.HTTPError as e:
-            self.logger.error(f"请求电子表格数据HTTP错误: {str(e)}")
+            self.logger.error(f"请求电子表格数据HTTP错误，状态码: {response.status_code}，错误: {str(e)}")
             if response is not None:
-                self.logger.error(f"响应状态码: {response.status_code}")
-                self.logger.error(f"响应内容: {response.text}")
+                try:
+                    error_result = response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {response.text}")
         # 如果获取详细数据失败，尝试获取基本信息
         try:
             basic_info_url = f"{self.BASE_URL}/sheets/v3/spreadsheets/{actual_spreadsheet_token}"
@@ -253,7 +349,91 @@ class FeishuDocAPI:
             if basic_result.get("code") == 0:
                 return basic_result["data"]
             else:
-                self.logger.error(f"获取电子表格基本信息也失败: {basic_result}")
+                self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {basic_result.get('msg')}")
                 return None
         except Exception as basic_error:
             self.logger.error(f"请求电子表格基本信息也异常: {str(basic_error)}")
+
+    def get_spreadsheet_sheets(self, spreadsheet_token: str) -> Optional[Dict[str, Any]]:
+        """
+        获取电子表格中的所有工作表信息
+        
+        :param spreadsheet_token: 电子表格token
+        :return: 工作表信息
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/sheets/v3/spreadsheets/{spreadsheet_token}/sheets/query"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"获取电子表格工作表失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求电子表格工作表异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+
+    def get_spreadsheet_meta(self, spreadsheet_token: str, ext_fields: str = None, user_id_type: str = "open_id") -> Optional[Dict[str, Any]]:
+        """
+        获取电子表格的元数据
+        
+        :param spreadsheet_token: 电子表格token
+        :param ext_fields: 扩展字段
+        :param user_id_type: 用户ID类型，默认为open_id
+        :return: 电子表格元数据
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/sheets/v3/spreadsheets/{spreadsheet_token}/meta"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        params = {}
+        if ext_fields:
+            params["ext_fields"] = ext_fields
+        if user_id_type:
+            params["user_id_type"] = user_id_type
+
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]
+            else:
+                self.logger.error(f"获取电子表格元数据失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求电子表格元数据异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None

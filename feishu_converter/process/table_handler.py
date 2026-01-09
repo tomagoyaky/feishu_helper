@@ -11,15 +11,170 @@ class TableHandler(BaseHandler):
     """
     
     @staticmethod
-    def process_table(block: Dict[str, Any], markdown_lines: List[str], block_index: Dict[str, Any] = None, id_to_content: Dict[str, str] = None):
+    def process_table(block: Dict[str, Any], markdown_lines: List[str], all_blocks: List[Dict[str, Any]] = None):
         """
         处理表格块
         
         :param block: 块数据
         :param markdown_lines: Markdown行列表
-        :param block_index: 块索引，用于查找子块
-        :param id_to_content: ID到内容的映射
+        :param all_blocks: 所有块的列表，用于构建索引和ID到内容的映射
         """
+        # 普通表格不需要权限检查，只有电子表格需要
+        # 电子表格的权限检查已在SheetHandler中处理
+        # 这里继续处理普通表格
+        
+        # 如果提供了所有块的信息，构建索引和映射
+        block_index = {}
+        id_to_content = {}
+        
+        if all_blocks:
+            # 构建块索引
+            block_index = {blk['block_id']: blk for blk in all_blocks}
+            
+            # 构建ID到内容的映射
+            for blk in all_blocks:
+                blk_type = blk.get('block_type')
+                
+                # 为文本块建立ID映射
+                if blk_type == 2:  # 文本块
+                    elements = blk.get('text', {}).get('elements', [])
+                    text_parts = []
+                    
+                    for element in elements:
+                        if 'text_run' in element:
+                            content_val = element['text_run'].get('content', '')
+                            # 处理文本样式
+                            style = element['text_run'].get('text_element_style', {})
+                            if style:
+                                bold = style.get('bold', False)
+                                italic = style.get('italic', False)
+                                strikethrough = style.get('strikethrough', False)
+                                inline_code = style.get('inline_code', False)
+                                
+                                if bold:
+                                    content_val = f"**{content_val}**"
+                                if italic:
+                                    content_val = f"*{content_val}*"
+                                if strikethrough:
+                                    content_val = f"~~{content_val}~~"
+                                if inline_code:
+                                    content_val = f"`{content_val}`"
+                            
+                            text_parts.append(content_val)
+                    
+                    full_content = ''.join(text_parts)
+                    if full_content:
+                        id_to_content[blk['block_id']] = full_content
+                # 处理标题块
+                elif blk_type in [3, 4, 5, 6, 7, 8, 9, 10, 11]:  # 各级标题
+                    block_key_map = {
+                        3: 'heading1', 4: 'heading2', 5: 'heading3', 6: 'heading4',
+                        7: 'heading5', 8: 'heading6', 9: 'heading7', 10: 'heading8', 11: 'heading9'
+                    }
+                    block_key = block_key_map.get(blk_type)
+                    if block_key and block_key in blk:
+                        elements = blk[block_key].get('elements', [])
+                        text_parts = []
+                        
+                        for element in elements:
+                            if 'text_run' in element:
+                                content_val = element['text_run'].get('content', '')
+                                # 处理文本样式
+                                style = element['text_run'].get('text_element_style', {})
+                                if style:
+                                    bold = style.get('bold', False)
+                                    italic = style.get('italic', False)
+                                    strikethrough = style.get('strikethrough', False)
+                                    inline_code = style.get('inline_code', False)
+                                    
+                                    if bold:
+                                        content_val = f"**{content_val}**"
+                                    if italic:
+                                        content_val = f"*{content_val}*"
+                                    if strikethrough:
+                                        content_val = f"~~{content_val}~~"
+                                    if inline_code:
+                                        content_val = f"`{content_val}`"
+                                
+                                text_parts.append(content_val)
+                        
+                        full_content = ''.join(text_parts)
+                        if full_content:
+                            id_to_content[blk['block_id']] = full_content
+                # 处理引用块
+                elif blk_type == 15:  # 引用
+                    elements = blk.get('quote', {}).get('elements', [])
+                    text_parts = []
+                    
+                    for element in elements:
+                        if 'text_run' in element:
+                            content_val = element['text_run'].get('content', '')
+                            # 处理文本样式
+                            style = element['text_run'].get('text_element_style', {})
+                            if style:
+                                bold = style.get('bold', False)
+                                italic = style.get('italic', False)
+                                strikethrough = style.get('strikethrough', False)
+                                inline_code = style.get('inline_code', False)
+                                
+                                if bold:
+                                    content_val = f"**{content_val}**"
+                                if italic:
+                                    content_val = f"*{content_val}*"
+                                if strikethrough:
+                                    content_val = f"~~{content_val}~~"
+                                if inline_code:
+                                    content_val = f"`{content_val}`"
+                            
+                            text_parts.append(content_val)
+                    
+                    full_content = ''.join(text_parts)
+                    if full_content:
+                        id_to_content[blk['block_id']] = full_content
+                # 处理代码块
+                elif blk_type == 14:  # 代码块
+                    elements = blk.get('code', {}).get('elements', [])
+                    text_parts = []
+                    
+                    for element in elements:
+                        if 'text_run' in element:
+                            content_val = element['text_run'].get('content', '')
+                            text_parts.append(content_val)
+                    
+                    full_content = ''.join(text_parts)
+                    if full_content:
+                        id_to_content[blk['block_id']] = full_content
+                # 处理表格单元格
+                elif blk_type == 32:  # 表格单元格
+                    elements = blk.get('table_cell', {}).get('elements', [])
+                    text_parts = []
+                    
+                    for element in elements:
+                        if 'text_run' in element:
+                            content_val = element['text_run'].get('content', '')
+                            # 处理文本样式
+                            style = element['text_run'].get('text_element_style', {})
+                            if style:
+                                bold = style.get('bold', False)
+                                italic = style.get('italic', False)
+                                strikethrough = style.get('strikethrough', False)
+                                inline_code = style.get('inline_code', False)
+                                
+                                if bold:
+                                    content_val = f"**{content_val}**"
+                                if italic:
+                                    content_val = f"*{content_val}*"
+                                if strikethrough:
+                                    content_val = f"~~{content_val}~~"
+                                if inline_code:
+                                    content_val = f"`{content_val}`"
+                            
+                            text_parts.append(content_val)
+                    
+                    full_content = ''.join(text_parts)
+                    if full_content:
+                        id_to_content[blk['block_id']] = full_content
+        
         table_data = block.get('table', {})
         cells = table_data.get('cells', [])  # cells 包含单元格块 ID
         property_data = table_data.get('property', {})
