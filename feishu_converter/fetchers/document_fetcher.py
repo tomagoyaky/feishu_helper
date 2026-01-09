@@ -29,7 +29,7 @@ class DocumentFetcher:
         :return: 文档内容
         """
         # 从URL中提取文档ID
-        document_id = self._extract_document_id(document_url)
+        document_id = self.extract_document_id(document_url)
         if not document_id:
             self.logger.error(f"无法从URL提取文档ID: {document_url}")
             return None
@@ -58,7 +58,7 @@ class DocumentFetcher:
         
         return document_content
     
-    def _extract_document_id(self, document_url: str) -> Optional[str]:
+    def extract_document_id(self, document_url: str) -> Optional[str]:
         """
         从文档URL中提取文档ID
         

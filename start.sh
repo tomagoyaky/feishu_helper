@@ -1,42 +1,25 @@
 #!/bin/bash
+clear
+set -e  # 遇到错误时终止脚本
 
 # 飞书文档转换脚本
+# 功能：创建虚拟环境、安装依赖、执行文档转换
 # 用法: ./start.sh <飞书文档URL> [格式]
-# 格式可选: md (默认), pdf
+# 格式可选: markdown (默认), pdf
 
 # 检查是否提供了URL参数
 if [ -z "$1" ]; then
     echo "错误: 请提供飞书文档URL"
     echo "用法: $0 <飞书文档URL> [格式]"
-    echo "格式可选: md (默认), pdf"
+    echo "格式可选: markdown (默认), pdf"
     exit 1
 fi
 
 DOCUMENT_URL="$1"
-OUTPUT_FORMAT="${2:-md}"  # 默认为md格式
+OUTPUT_FORMAT="${2:-markdown}"  # 默认为md格式
 
 echo "正在转换文档: $DOCUMENT_URL"
 echo "输出格式: $OUTPUT_FORMAT"
-
-# 执行转换命令
-if [ "$OUTPUT_FORMAT" = "pdf" ]; then
-    python main.py --url "$DOCUMENT_URL" --output-format pdf
-else
-    python main.py --url "$DOCUMENT_URL" --output-format md
-fi
-
-# 检查命令执行结果
-if [ $? -eq 0 ]; then
-    echo "文档转换完成"
-else
-    echo "文档转换失败"
-    exit 1
-fi
-
-# 飞书文档转换器脚本
-# 功能：创建虚拟环境、安装依赖、执行文档转换
-
-set -e  # 遇到错误时终止脚本
 
 # 颜色定义
 RED='\033[0;31m'
@@ -181,18 +164,19 @@ execute_conversion() {
         exit 1
     fi
     
-    DOC_URL="$1"
-    OUTPUT_FORMAT="$2"
-    OUTPUT_PATH="$3"
-    
-    print_info "Converting document: $DOC_URL -> $OUTPUT_PATH ($OUTPUT_FORMAT)"
-    
-    python main.py "$DOC_URL" "$OUTPUT_FORMAT" "$OUTPUT_PATH"
-    
-    if [[ $? -eq 0 ]]; then
-        print_info "Conversion completed successfully"
+    print_info "Converting document: $DOCUMENT_URL -> '${OUTPUT_FORMAT}'文件格式"
+    # 执行转换命令
+    if [ "$OUTPUT_FORMAT" = "pdf" ]; then
+        python main.py --url "$DOCUMENT_URL" --output-format pdf
     else
-        print_error "Conversion failed"
+        python main.py --url "$DOCUMENT_URL" --output-format markdown
+    fi
+
+    # 检查命令执行结果
+    if [ $? -eq 0 ]; then
+        echo "文档转换完成"
+    else
+        echo "文档转换失败"
         exit 1
     fi
 }
@@ -206,28 +190,13 @@ show_help() {
     echo "选项:"
     echo "  setup          创建虚拟环境并安装依赖"
     echo "  convert <url> <format> <path>  转换飞书文档 (支持格式: pdf, markdown)"
-    echo "  run_tests      运行单元测试"
     echo "  help           显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  $0 setup"
-    echo "  $0 convert https://example.feishu.cn/docx/xxx pdf /path/to/output.pdf"
-    echo "  $0 convert https://example.feishu.cn/docx/xxx markdown /path/to/output.md"
+    echo "  $0 convert https://example.feishu.cn/docx/xxx pdf"
+    echo "  $0 convert https://example.feishu.cn/docx/xxx markdown（默认）"
     echo "  $0 run_tests"
-}
-
-# 运行单元测试
-run_tests() {
-    print_info "Running unit tests"
-    
-    python -m pytest test_converter.py -v
-    
-    if [[ $? -eq 0 ]]; then
-        print_info "All tests passed"
-    else
-        print_error "Some tests failed"
-        exit 1
-    fi
 }
 
 # 主函数
@@ -254,12 +223,6 @@ main() {
             install_dependencies
             check_env_vars
             execute_conversion "$2" "$3" "$4"
-            ;;
-        "run_tests")
-            create_venv
-            activate_venv
-            install_dependencies
-            run_tests
             ;;
         "help"|"-h"|"--help")
             show_help
