@@ -15,8 +15,9 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-DOCUMENT_URL="$1"
-OUTPUT_FORMAT="${2:-markdown}"  # 默认为md格式
+ACTION="$1"
+DOCUMENT_URL="$2"
+OUTPUT_FORMAT="${3:-markdown}"  # 默认为md格式
 
 echo "正在转换文档: $DOCUMENT_URL"
 echo "输出格式: $OUTPUT_FORMAT"
@@ -159,7 +160,7 @@ check_env_vars() {
 # 执行转换
 execute_conversion() {
     if [[ $# -ne 3 ]]; then
-        print_error "Usage: $0 convert <feishu_doc_url> <output_format> <output_path>"
+        print_error "Usage: $0 convert <feishu_doc_url> <output_format>"
         print_info "Supported formats: pdf, markdown"
         exit 1
     fi
@@ -213,11 +214,6 @@ main() {
             print_info "Setup completed successfully"
             ;;
         "convert")
-            if [[ $# -ne 4 ]]; then
-                print_error "Usage: $0 convert <feishu_doc_url> <output_format> <output_path>"
-                exit 1
-            fi
-            
             create_venv
             activate_venv
             install_dependencies
