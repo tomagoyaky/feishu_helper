@@ -71,6 +71,52 @@ class FeishuDocAPI:
             self.logger.error(f"请求访问令牌异常: {str(e)}")
             return None
     
+    def create_document(self, title: str = "未命名文档", folder_token: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        创建飞书文档
+        
+        :param title: 文档标题
+        :param folder_token: 指定文档所在文件夹的Token，不传或传空表示根目录
+        :return: 创建的文档信息
+        """
+        access_token = self.get_access_token()
+        if not access_token:
+            return None
+
+        url = f"{self.BASE_URL}/docx/v1/documents"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+
+        data = {
+            "title": title
+        }
+        
+        if folder_token:
+            data["folder_token"] = folder_token
+
+        try:
+            response = requests.post(url, headers=headers, json=data)
+            response.raise_for_status()
+
+            result = response.json()
+            if result.get("code") == 0:
+                return result["data"]["document"]
+            else:
+                self.logger.error(f"创建文档失败，错误码: {result.get('code')}，消息: {result.get('msg')}")
+                return None
+        except Exception as e:
+            self.logger.error(f"请求创建文档异常: {str(e)}")
+            # 尝试获取响应内容
+            if hasattr(e, 'response') and e.response is not None:
+                try:
+                    error_result = e.response.json()
+                    self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
+                except:
+                    self.logger.error(f"响应内容: {e.response.text}")
+            return None
+    
     def get_document_info(self, document_id: str) -> Optional[Dict[str, Any]]:
         """
         获取文档信息
@@ -247,6 +293,7 @@ class FeishuDocAPI:
                     self.logger.error(f"错误响应，错误码: {error_result.get('code')}，消息: {error_result.get('msg')}")
                 except:
                     self.logger.error(f"响应内容: {e.response.text}")
+            return None
 
     def get_spreadsheet_data(self, spreadsheet_token: str, sheet_id: str = None) -> Optional[Dict[str, Any]]:
         """
@@ -329,7 +376,7 @@ class FeishuDocAPI:
                 if basic_result.get("code") == 0:
                     return basic_result["data"]
                 else:
-                    self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {basic_result.get('msg')}")
+                    self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {result.get('msg')}")
                     return None
         except requests.exceptions.HTTPError as e:
             self.logger.error(f"请求电子表格数据HTTP错误，状态码: {response.status_code}，错误: {str(e)}")
@@ -349,7 +396,7 @@ class FeishuDocAPI:
             if basic_result.get("code") == 0:
                 return basic_result["data"]
             else:
-                self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {basic_result.get('msg')}")
+                self.logger.error(f"获取电子表格基本信息也失败，错误码: {basic_result.get('code')}，消息: {result.get('msg')}")
                 return None
         except Exception as basic_error:
             self.logger.error(f"请求电子表格基本信息也异常: {str(basic_error)}")
