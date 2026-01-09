@@ -67,6 +67,150 @@ class MarkdownAdapter(IFormatAdapter):
         # 构建块索引，便于查找子块
         block_index = {block['block_id']: block for block in blocks}
         
+        # 预处理：建立ID到内容的映射（对于表格单元格引用）
+        id_to_content = {}
+        for block in blocks:
+            block_type = block.get('block_type')
+            # 为文本块建立ID映射
+            if block_type == 2:  # 文本块
+                elements = block.get('text', {}).get('elements', [])
+                text_parts = []
+                
+                for element in elements:
+                    if 'text_run' in element:
+                        content_val = element['text_run'].get('content', '')
+                        # 处理文本样式
+                        style = element['text_run'].get('text_element_style', {})
+                        if style:
+                            bold = style.get('bold', False)
+                            italic = style.get('italic', False)
+                            strikethrough = style.get('strikethrough', False)
+                            inline_code = style.get('inline_code', False)
+                            
+                            if bold:
+                                content_val = f"**{content_val}**"
+                            if italic:
+                                content_val = f"*{content_val}*"
+                            if strikethrough:
+                                content_val = f"~~{content_val}~~"
+                            if inline_code:
+                                content_val = f"`{content_val}`"
+                        
+                        text_parts.append(content_val)
+                
+                full_content = ''.join(text_parts)
+                if full_content:
+                    id_to_content[block['block_id']] = full_content
+            # 同时处理标题块
+            elif block_type in [3, 4, 5, 6, 7, 8, 9, 10, 11]:  # 各级标题
+                block_key_map = {
+                    3: 'heading1', 4: 'heading2', 5: 'heading3', 6: 'heading4',
+                    7: 'heading5', 8: 'heading6', 9: 'heading7', 10: 'heading8', 11: 'heading9'
+                }
+                block_key = block_key_map.get(block_type)
+                if block_key and block_key in block:
+                    elements = block[block_key].get('elements', [])
+                    text_parts = []
+                    
+                    for element in elements:
+                        if 'text_run' in element:
+                            content_val = element['text_run'].get('content', '')
+                            # 处理文本样式
+                            style = element['text_run'].get('text_element_style', {})
+                            if style:
+                                bold = style.get('bold', False)
+                                italic = style.get('italic', False)
+                                strikethrough = style.get('strikethrough', False)
+                                inline_code = style.get('inline_code', False)
+                                
+                                if bold:
+                                    content_val = f"**{content_val}**"
+                                if italic:
+                                    content_val = f"*{content_val}*"
+                                if strikethrough:
+                                    content_val = f"~~{content_val}~~"
+                                if inline_code:
+                                    content_val = f"`{content_val}`"
+                            
+                            text_parts.append(content_val)
+                    
+                    full_content = ''.join(text_parts)
+                    if full_content:
+                        id_to_content[block['block_id']] = full_content
+            # 同时处理引用块
+            elif block_type == 15:  # 引用
+                elements = block.get('quote', {}).get('elements', [])
+                text_parts = []
+                
+                for element in elements:
+                    if 'text_run' in element:
+                        content_val = element['text_run'].get('content', '')
+                        # 处理文本样式
+                        style = element['text_run'].get('text_element_style', {})
+                        if style:
+                            bold = style.get('bold', False)
+                            italic = style.get('italic', False)
+                            strikethrough = style.get('strikethrough', False)
+                            inline_code = style.get('inline_code', False)
+                            
+                            if bold:
+                                content_val = f"**{content_val}**"
+                            if italic:
+                                content_val = f"*{content_val}*"
+                            if strikethrough:
+                                content_val = f"~~{content_val}~~"
+                            if inline_code:
+                                content_val = f"`{content_val}`"
+                        
+                        text_parts.append(content_val)
+                
+                full_content = ''.join(text_parts)
+                if full_content:
+                    id_to_content[block['block_id']] = full_content
+            # 同时处理代码块
+            elif block_type == 14:  # 代码块
+                elements = block.get('code', {}).get('elements', [])
+                text_parts = []
+                
+                for element in elements:
+                    if 'text_run' in element:
+                        content_val = element['text_run'].get('content', '')
+                        text_parts.append(content_val)
+                
+                full_content = ''.join(text_parts)
+                if full_content:
+                    id_to_content[block['block_id']] = full_content
+            # 同时处理表格单元格
+            elif block_type == 32:  # 表格单元格
+                elements = block.get('table_cell', {}).get('elements', [])
+                text_parts = []
+                
+                for element in elements:
+                    if 'text_run' in element:
+                        content_val = element['text_run'].get('content', '')
+                        # 处理文本样式
+                        style = element['text_run'].get('text_element_style', {})
+                        if style:
+                            bold = style.get('bold', False)
+                            italic = style.get('italic', False)
+                            strikethrough = style.get('strikethrough', False)
+                            inline_code = style.get('inline_code', False)
+                            
+                            if bold:
+                                content_val = f"**{content_val}**"
+                            if italic:
+                                content_val = f"*{content_val}*"
+                            if strikethrough:
+                                content_val = f"~~{content_val}~~"
+                            if inline_code:
+                                content_val = f"`{content_val}`"
+                        
+                        text_parts.append(content_val)
+                
+                full_content = ''.join(text_parts)
+                if full_content:
+                    id_to_content[block['block_id']] = full_content
+        
         # 遍历所有块，识别表格和独立文本块
         text_blocks = []
         for i, block in enumerate(blocks):
@@ -95,11 +239,11 @@ class MarkdownAdapter(IFormatAdapter):
             elif block_type == 19:  # 高亮块
                 TextHandler.process_callout(block, markdown_lines)
             elif block_type == 30:  # 电子表格
-                # 电子表格处理逻辑暂时保留，因为原方法参数较复杂
-                markdown_lines.append("<!-- 电子表格块 -->")
-                DividerHandler.add_empty_line(markdown_lines)
+                # 使用 SheetHandler 处理电子表格
+                SheetHandler.process_sheet(block, markdown_lines, spreadsheet_data)
             elif block_type == 31:  # 表格
-                TableHandler.process_table(block, markdown_lines)
+                # 传递 block_index 和 id_to_content 参数
+                TableHandler.process_table(block, markdown_lines, block_index, id_to_content)
             elif block_type == 33:  # 视图
                 ViewHandler.process_view(block, markdown_lines)
             elif block_type == 34:  # 引用容器
