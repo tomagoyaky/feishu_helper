@@ -1,6 +1,8 @@
 """
 文档组件处理器类
 """
+import json
+
 from typing import Dict, Any, List
 from .base_handler import BaseHandler
 
@@ -31,8 +33,9 @@ class DocumentWidgetHandler(BaseHandler):
         
         # 如果有记录数据，可以尝试解析
         if record:
+            record_json = json.loads(record)
             markdown_lines.append(f"```json")
-            markdown_lines.append(f"{record}")
+            markdown_lines.append(f"{record_json.get('data', '')}")
             markdown_lines.append(f"```")
         
         # 添加空行

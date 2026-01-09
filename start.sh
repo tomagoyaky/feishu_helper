@@ -1,5 +1,38 @@
 #!/bin/bash
 
+# 飞书文档转换脚本
+# 用法: ./start.sh <飞书文档URL> [格式]
+# 格式可选: md (默认), pdf
+
+# 检查是否提供了URL参数
+if [ -z "$1" ]; then
+    echo "错误: 请提供飞书文档URL"
+    echo "用法: $0 <飞书文档URL> [格式]"
+    echo "格式可选: md (默认), pdf"
+    exit 1
+fi
+
+DOCUMENT_URL="$1"
+OUTPUT_FORMAT="${2:-md}"  # 默认为md格式
+
+echo "正在转换文档: $DOCUMENT_URL"
+echo "输出格式: $OUTPUT_FORMAT"
+
+# 执行转换命令
+if [ "$OUTPUT_FORMAT" = "pdf" ]; then
+    python main.py --url "$DOCUMENT_URL" --output-format pdf
+else
+    python main.py --url "$DOCUMENT_URL" --output-format md
+fi
+
+# 检查命令执行结果
+if [ $? -eq 0 ]; then
+    echo "文档转换完成"
+else
+    echo "文档转换失败"
+    exit 1
+fi
+
 # 飞书文档转换器脚本
 # 功能：创建虚拟环境、安装依赖、执行文档转换
 
