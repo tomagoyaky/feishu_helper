@@ -84,3 +84,8 @@ workspace/
 # Personal files
 .env
 .vscode/
+
+output/
+test_output/
+
+get_info.json

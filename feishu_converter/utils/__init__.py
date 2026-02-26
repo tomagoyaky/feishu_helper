@@ -6,6 +6,22 @@
 import re
 from urllib.parse import urlparse
 
+# 导出新的工具类
+from .image_utils import ImageUtils, ImageCacheManager
+from .retry_utils import (
+    RetryConfig,
+    retry_with_backoff,
+    retry_on_rate_limit,
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    FallbackStrategy,
+    with_fallback,
+    RequestSessionManager,
+    safe_request,
+    safe_get,
+    safe_post
+)
+
 
 def validate_url(url: str) -> bool:
     """
@@ -44,3 +60,25 @@ def extract_doc_id_from_url(url: str) -> str:
             return path_parts[1]
     
     return None
+
+
+__all__ = [
+    # URL工具
+    'validate_url',
+    'extract_doc_id_from_url',
+    # 图片工具
+    'ImageUtils',
+    'ImageCacheManager',
+    # 重试工具
+    'RetryConfig',
+    'retry_with_backoff',
+    'retry_on_rate_limit',
+    'CircuitBreaker',
+    'CircuitBreakerOpenError',
+    'FallbackStrategy',
+    'with_fallback',
+    'RequestSessionManager',
+    'safe_request',
+    'safe_get',
+    'safe_post',
+]

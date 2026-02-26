@@ -4,8 +4,9 @@ Markdown适配器
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, List
 from ..interfaces import IFormatAdapter
+from ..process.base_handler import BaseHandler
 from ..process.heading_handler import HeadingHandler
 from ..process.list_handler import ListHandler
 from ..process.code_handler import CodeHandler
@@ -88,23 +89,98 @@ class MarkdownAdapter(IFormatAdapter):
         :param content: 文档内容
         :return: Markdown字符串
         """
+        # 重置有序列表序号计数器
+        ListHandler.reset_ordered_list_index()
+        
+        # 重置标题序号计数器
+        HeadingHandler.reset_heading_numbers()
+        
         blocks = content.get('items', [])
         markdown_lines = []
         
-        # 遍历所有块，识别表格和独立文本块
-        text_blocks = []
-        for i, block in enumerate(blocks):
+        # 构建块索引（block_id -> block），用于处理嵌套结构
+        block_index = {blk['block_id']: blk for blk in blocks if 'block_id' in blk}
+        
+        # 找出根块（parent_id为空或指向页面块的块）
+        page_block_id = None
+        for blk in blocks:
+            if blk.get('block_type') == 1:  # 页面块
+                page_block_id = blk.get('block_id')
+                break
+        
+        # 构建父子关系映射
+        parent_children_map = {}
+        for blk in blocks:
+            parent_id = blk.get('parent_id')
+            if parent_id:
+                if parent_id not in parent_children_map:
+                    parent_children_map[parent_id] = []
+                parent_children_map[parent_id].append(blk)
+        
+        # 获取顶层块（直接作为页面子块的块）
+        top_level_blocks = []
+        if page_block_id and page_block_id in parent_children_map:
+            top_level_blocks = parent_children_map[page_block_id]
+        else:
+            # 如果没有找到页面块或没有子块，使用所有没有父块或父块是页面块的块
+            for blk in blocks:
+                parent_id = blk.get('parent_id')
+                if not parent_id or parent_id == page_block_id:
+                    if blk.get('block_type') != 1:  # 排除页面块本身
+                        top_level_blocks.append(blk)
+        
+        # 如果没有找到顶层块，回退到处理所有块
+        if not top_level_blocks:
+            top_level_blocks = [blk for blk in blocks if blk.get('block_type') != 1]
+        
+        # 先处理页面块本身（输出标题）
+        if page_block_id and page_block_id in block_index:
+            page_block = block_index[page_block_id]
+            HeadingHandler.process_page(page_block, markdown_lines)
+        
+        # 处理顶层块，递归处理子块
+        self._process_blocks_recursive(
+            top_level_blocks, 
+            markdown_lines, 
+            block_index, 
+            parent_children_map,
+            blocks
+        )
+        
+        return '\n'.join(markdown_lines)
+    
+    def _process_blocks_recursive(
+        self, 
+        blocks_to_process: List[Dict[str, Any]], 
+        markdown_lines: List[str],
+        block_index: Dict[str, Any],
+        parent_children_map: Dict[str, List],
+        all_blocks: List[Dict[str, Any]]
+    ):
+        """
+        递归处理块列表
+        
+        :param blocks_to_process: 要处理的块列表
+        :param markdown_lines: Markdown行列表
+        :param block_index: 块索引（block_id -> block）
+        :param parent_children_map: 父子关系映射
+        :param all_blocks: 所有块的列表
+        """
+        for i, block in enumerate(blocks_to_process):
             block_type = block.get('block_type')
-            print('-> i:', i, 'block_type:', block_type)
+            block_id = block.get('block_id', '')
+            
             # 页面块
             if block_type == 1:  # 页面(Page)
                 HeadingHandler.process_page(block, markdown_lines)
             # 文本块
             elif block_type == 2:  # 文本块
-                text_blocks.append((i, block))
+                TextHandler.process_text(block, markdown_lines)
             # 标题块
             elif 3 <= block_type <= 11:  # 标题块 (heading1-heading9)
                 level = block_type - 2  # 计算标题级别
+                # 遇到标题块时重置有序列表序号计数器
+                ListHandler.reset_ordered_list_index()
                 HeadingHandler.process_heading(block, level, markdown_lines)
             # 列表块
             elif block_type == 12:  # 无序列表
@@ -125,7 +201,9 @@ class MarkdownAdapter(IFormatAdapter):
                 BitableHandler.process_bitable(block, markdown_lines)
             # 高亮块
             elif block_type == 19:  # 高亮块
-                TextHandler.process_callout(block, markdown_lines)
+                self._process_callout_with_children(
+                    block, markdown_lines, block_index, parent_children_map, all_blocks
+                )
             # 会话卡片
             elif block_type == 20:  # 会话卡片
                 ChatCardHandler.process_chat_card(block, markdown_lines)
@@ -158,18 +236,20 @@ class MarkdownAdapter(IFormatAdapter):
                 MindNoteHandler.process_mind_note(block, markdown_lines)
             # 电子表格（外部资源，需要权限检查）
             elif block_type == 30:  # 电子表格
-                # 使用 SheetHandler 处理电子表格，内部已进行权限检查
                 SheetHandler.process_sheet(block, markdown_lines)
             # 表格相关（内部资源，不需要权限检查）
             elif 31 <= block_type <= 32:  # 表格相关 (table, table_cell)
-                # 普通表格
-                TableHandler.process_table(block, markdown_lines, blocks)
+                TableHandler.process_table(block, markdown_lines, all_blocks)
             # 视图块
             elif block_type == 33:  # 视图
-                ViewHandler.process_view(block, markdown_lines)
+                self._process_view_with_children(
+                    block, markdown_lines, block_index, parent_children_map, all_blocks
+                )
             # 引用容器
             elif block_type == 34:  # 引用容器
-                QuoteContainerHandler.process_quote_container(block, markdown_lines)
+                self._process_quote_container_with_children(
+                    block, markdown_lines, block_index, parent_children_map, all_blocks
+                )
             # 任务
             elif block_type == 35:  # 任务
                 TaskHandler.process_task(block, markdown_lines)
@@ -222,5 +302,198 @@ class MarkdownAdapter(IFormatAdapter):
             else:
                 # 对于未知的块类型，使用OtherHandler处理
                 OtherHandler.process_other(block, markdown_lines)
+            
+            # 递归处理子块
+            if block_id in parent_children_map:
+                child_blocks = parent_children_map[block_id]
+                self._process_blocks_recursive(
+                    child_blocks, 
+                    markdown_lines, 
+                    block_index, 
+                    parent_children_map,
+                    all_blocks
+                )
+    
+    def _process_view_with_children(
+        self, 
+        block: Dict[str, Any], 
+        markdown_lines: List[str],
+        block_index: Dict[str, Any],
+        parent_children_map: Dict[str, List],
+        all_blocks: List[Dict[str, Any]]
+    ):
+        """
+        处理视图块及其子块
         
-        return '\n'.join(markdown_lines)
+        :param block: 块数据
+        :param markdown_lines: Markdown行列表
+        :param block_index: 块索引
+        :param parent_children_map: 父子关系映射
+        :param all_blocks: 所有块的列表
+        """
+        block_id = block.get('block_id', '')
+        
+        # 视图块本身可能没有内容，但需要处理其子块
+        # 使用 parent_children_map 获取子块，而不是 block.get('children')
+        if block_id in parent_children_map:
+            child_blocks = parent_children_map[block_id]
+            for child_block in child_blocks:
+                self._process_single_block(
+                    child_block, 
+                    markdown_lines, 
+                    block_index, 
+                    parent_children_map, 
+                    all_blocks
+                )
+    
+    def _process_quote_container_with_children(
+        self, 
+        block: Dict[str, Any], 
+        markdown_lines: List[str],
+        block_index: Dict[str, Any],
+        parent_children_map: Dict[str, List],
+        all_blocks: List[Dict[str, Any]]
+    ):
+        """
+        处理引用容器块及其子块
+        
+        :param block: 块数据
+        :param markdown_lines: Markdown行列表
+        :param block_index: 块索引
+        :param parent_children_map: 父子关系映射
+        :param all_blocks: 所有块的列表
+        """
+        block_id = block.get('block_id', '')
+        
+        # 引用容器块需要处理其子块，并用引用格式包裹
+        # 使用 parent_children_map 获取子块，而不是 block.get('children')
+        if block_id in parent_children_map:
+            child_blocks = parent_children_map[block_id]
+            child_lines = []
+            for child_block in child_blocks:
+                self._process_single_block(
+                    child_block, 
+                    child_lines, 
+                    block_index, 
+                    parent_children_map, 
+                    all_blocks
+                )
+            
+            # 将子块内容用引用格式包裹
+            for line in child_lines:
+                if line.strip():
+                    markdown_lines.append(f"> {line}")
+                else:
+                    markdown_lines.append(">")
+            BaseHandler.add_empty_line(markdown_lines)
+    
+    def _process_callout_with_children(
+        self, 
+        block: Dict[str, Any], 
+        markdown_lines: List[str],
+        block_index: Dict[str, Any],
+        parent_children_map: Dict[str, List],
+        all_blocks: List[Dict[str, Any]]
+    ):
+        """
+        处理高亮块及其子块
+        
+        :param block: 块数据
+        :param markdown_lines: Markdown行列表
+        :param block_index: 块索引
+        :param parent_children_map: 父子关系映射
+        :param all_blocks: 所有块的列表
+        """
+        block_id = block.get('block_id', '')
+        callout_data = block.get('callout', {})
+        emoji_id = callout_data.get('emoji_id', '')
+        
+        # 获取子块内容
+        # 使用 parent_children_map 获取子块，而不是 block.get('children')
+        if block_id in parent_children_map:
+            child_blocks = parent_children_map[block_id]
+            child_lines = []
+            for child_block in child_blocks:
+                self._process_single_block(
+                    child_block, 
+                    child_lines, 
+                    block_index, 
+                    parent_children_map, 
+                    all_blocks
+                )
+            
+            # 将子块内容用引用格式包裹
+            emoji_str = f"[{emoji_id}] " if emoji_id else ""
+            for line in child_lines:
+                if line.strip():
+                    markdown_lines.append(f"> {emoji_str}{line}")
+                    emoji_str = ""  # 只在第一行显示emoji
+                else:
+                    markdown_lines.append(">")
+            BaseHandler.add_empty_line(markdown_lines)
+        else:
+            # 如果没有子块，尝试从 callout 的 elements 获取内容
+            TextHandler.process_callout(block, markdown_lines)
+    
+    def _process_single_block(
+        self, 
+        block: Dict[str, Any], 
+        markdown_lines: List[str],
+        block_index: Dict[str, Any],
+        parent_children_map: Dict[str, List],
+        all_blocks: List[Dict[str, Any]]
+    ):
+        """
+        处理单个块
+        
+        :param block: 块数据
+        :param markdown_lines: Markdown行列表
+        :param block_index: 块索引
+        :param parent_children_map: 父子关系映射
+        :param all_blocks: 所有块的列表
+        """
+        block_type = block.get('block_type')
+        block_id = block.get('block_id', '')
+        
+        # 文本块
+        if block_type == 2:
+            TextHandler.process_text(block, markdown_lines)
+        # 标题块
+        elif 3 <= block_type <= 11:
+            level = block_type - 2
+            HeadingHandler.process_heading(block, level, markdown_lines)
+        # 列表块
+        elif block_type == 12:
+            ListHandler.process_bullet_list(block, markdown_lines)
+        elif block_type == 13:
+            ListHandler.process_ordered_list(block, markdown_lines)
+        # 代码块
+        elif block_type == 14:
+            CodeHandler.process_code(block, markdown_lines)
+        # 引用块
+        elif block_type == 15:
+            QuoteHandler.process_quote(block, markdown_lines)
+        # 待办事项
+        elif block_type == 17:
+            TextHandler.process_todo(block, markdown_lines)
+        # 其他块类型
+        elif block_type == 22:
+            DividerHandler.process_divider(markdown_lines)
+        elif block_type == 27:
+            ImageHandler.process_image(block, markdown_lines)
+        elif 31 <= block_type <= 32:
+            TableHandler.process_table(block, markdown_lines, all_blocks)
+        else:
+            # 对于其他类型，简单记录
+            OtherHandler.process_other(block, markdown_lines)
+        
+        # 递归处理子块
+        if block_id in parent_children_map:
+            child_blocks = parent_children_map[block_id]
+            self._process_blocks_recursive(
+                child_blocks, 
+                markdown_lines, 
+                block_index, 
+                parent_children_map,
+                all_blocks
+            )

@@ -1,1 +1,26 @@
-fastmcp
+# MCP服务
+fastmcp>=0.4.0
+
+# HTTP请求
+requests>=2.28.0
+
+# PDF生成
+reportlab>=3.6.0
+
+# PDF读取
+pdfplumber>=0.9.0
+
+# 环境变量管理
+python-dotenv>=0.19.0
+
+# 图片处理（可选，用于图片下载和转换）
+Pillow>=9.0.0
+
+# 工具库
+urllib3>=1.26.0
+
+# 进度条显示
+tqdm>=4.65.0
+
+# 飞书开放平台官方SDK
+lark-oapi>=1.0.0

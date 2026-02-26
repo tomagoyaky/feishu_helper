@@ -15,6 +15,7 @@ class SheetHandler(BaseHandler):
     def process_sheet(sheet_block: Dict[str, Any], markdown_lines: List[str]):
         """
         处理电子表格块，包括潜在的表格数据
+        注意：只保留文本内容，不保留样式信息
         
         :param sheet_block: 电子表格块
         :param markdown_lines: Markdown行列表
@@ -53,23 +54,28 @@ class SheetHandler(BaseHandler):
                     
                     # 将电子表格数据转换为Markdown表格
                     for i, row in enumerate(sheet_values):
-                        # 确保每个单元格都是字符串
+                        # 确保每个单元格都是字符串，只保留文本内容
                         row_str = []
                         for cell in row:
                             if isinstance(cell, str):
+                                # 直接使用字符串值，不处理样式
                                 row_str.append(cell)
                             elif isinstance(cell, dict):
                                 # 如果单元格是字典（如嵌入图像或其他内容），提取文本内容
                                 if 'text' in cell:
+                                    # 只提取文本部分，忽略样式
                                     row_str.append(str(cell['text']))
                                 elif 'fileToken' in cell:
                                     row_str.append("[文件]")
                                 else:
+                                    # 对于其他类型的字典，转换为字符串
                                     row_str.append(str(cell))
                             else:
+                                # 对于其他类型，转换为字符串或空字符串
                                 row_str.append(str(cell) if cell is not None else "")
                         
-                        row_str = [cell.replace('|', '\\|') if cell else ' ' for cell in row_str]  # 转义表格分隔符
+                        # 转义表格分隔符，确保Markdown表格格式正确
+                        row_str = [cell.replace('|', '\\|') if cell else ' ' for cell in row_str]
                         markdown_lines.append("| " + " | ".join(row_str) + " |")
                         
                         # 如果是第一行，添加分隔行

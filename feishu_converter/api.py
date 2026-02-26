@@ -10,6 +10,8 @@ import logging
 from enum import Enum
 from typing import Optional, Dict, Any, List
 
+from .utils.retry_utils import retry_with_backoff, RetryConfig, RequestSessionManager
+
 
 class PermissionType(Enum):
     """资源类型枚举"""
@@ -37,7 +39,18 @@ class FeishuDocAPI:
         self.app_secret = os.getenv("FEISHU_APP_SECRET")
         self.access_token = None
         self.logger = logging.getLogger(__name__)
+        self.session_manager = RequestSessionManager(
+            max_retries=3,
+            backoff_factor=0.5,
+            status_forcelist=(500, 502, 503, 504),
+            timeout=30.0
+        )
     
+    @retry_with_backoff(RetryConfig(
+        max_retries=3,
+        base_delay=1.0,
+        retry_exceptions=(requests.exceptions.RequestException,)
+    ))
     def get_access_token(self) -> Optional[str]:
         """
         获取访问令牌
@@ -57,16 +70,17 @@ class FeishuDocAPI:
         }
         
         try:
-            response = requests.post(url, headers=headers, json=data)
-            response.raise_for_status()
-            
-            result = response.json()
-            if result.get("code") == 0:
-                self.access_token = result["tenant_access_token"]
-                return self.access_token
-            else:
-                self.logger.error(f"获取访问令牌失败: {result}")
-                return None
+            with self.session_manager as session:
+                response = session.post(url, headers=headers, json=data)
+                response.raise_for_status()
+                
+                result = response.json()
+                if result.get("code") == 0:
+                    self.access_token = result["tenant_access_token"]
+                    return self.access_token
+                else:
+                    self.logger.error(f"获取访问令牌失败: {result}")
+                    return None
         except Exception as e:
             self.logger.error(f"请求访问令牌异常: {str(e)}")
             return None
@@ -453,6 +467,11 @@ class FeishuDocAPI:
                     self.logger.error(f"响应内容: {e.response.text}")
             return None
     
+    @retry_with_backoff(RetryConfig(
+        max_retries=3,
+        base_delay=1.0,
+        retry_exceptions=(requests.exceptions.RequestException,)
+    ))
     def get_document_info(self, document_id: str) -> Optional[Dict[str, Any]]:
         """
         获取文档信息
@@ -471,19 +490,25 @@ class FeishuDocAPI:
         }
         
         try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            
-            result = response.json()
-            if result.get("code") == 0:
-                return result["data"]["document"]
-            else:
-                self.logger.error(f"获取文档信息失败: {result}")
-                return None
+            with self.session_manager as session:
+                response = session.get(url, headers=headers)
+                response.raise_for_status()
+                
+                result = response.json()
+                if result.get("code") == 0:
+                    return result["data"]["document"]
+                else:
+                    self.logger.error(f"获取文档信息失败: {result}")
+                    return None
         except Exception as e:
             self.logger.error(f"请求文档信息异常: {str(e)}")
             return None
     
+    @retry_with_backoff(RetryConfig(
+        max_retries=3,
+        base_delay=1.0,
+        retry_exceptions=(requests.exceptions.RequestException,)
+    ))
     def get_document_blocks(self, document_id: str, page_token: Optional[str] = None, page_size: int = 500, document_revision_id: int = -1) -> Optional[Dict[str, Any]]:
         """
         获取文档块信息
@@ -512,15 +537,16 @@ class FeishuDocAPI:
             params["page_token"] = page_token
         
         try:
-            response = requests.get(url, headers=headers, params=params)
-            response.raise_for_status()
-            
-            result = response.json()
-            if result.get("code") == 0:
-                return result["data"]
-            else:
-                self.logger.error(f"获取文档块失败: {result}")
-                return None
+            with self.session_manager as session:
+                response = session.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                
+                result = response.json()
+                if result.get("code") == 0:
+                    return result["data"]
+                else:
+                    self.logger.error(f"获取文档块失败: {result}")
+                    return None
         except Exception as e:
             self.logger.error(f"请求文档块异常: {str(e)}")
             return None

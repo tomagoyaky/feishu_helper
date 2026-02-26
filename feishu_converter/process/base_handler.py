@@ -40,6 +40,17 @@ class BaseHandler:
             
             return content
         
+        # 处理文档提及 (mention_doc)
+        if 'mention_doc' in element:
+            mention_doc = element['mention_doc']
+            title = mention_doc.get('title', '')
+            url = mention_doc.get('url', '')
+            if title and url:
+                return f"[{title}]({url})"
+            elif title:
+                return title
+            return ""
+        
         return ""
     
     @staticmethod

@@ -3,6 +3,8 @@
 """
 from typing import Dict, Any, List
 from .base_handler import BaseHandler
+from ..utils.image_utils import ImageUtils
+from ..api import FeishuDocAPI
 
 
 class ImageHandler(BaseHandler):
@@ -23,6 +25,29 @@ class ImageHandler(BaseHandler):
         token = image_info.get('token', '')
         caption = image_info.get('caption', '图片')
         
-        # 在Markdown中添加图片占位符
-        markdown_lines.append(f"![{caption}](https://internal-api-drive.stream.feishu.cn/space/api/box/stream/download/preview/?file_token={token})")
-        ImageHandler.add_empty_line(markdown_lines)
+        if token:
+            # 获取访问令牌
+            api = FeishuDocAPI()
+            access_token = api.get_access_token()
+            
+            if access_token:
+                # 初始化图片工具类
+                image_utils = ImageUtils(access_token=access_token)
+                
+                # 下载图片
+                local_path = image_utils.download_image(token)
+                
+                if local_path:
+                    # 在Markdown中使用本地绝对路径
+                    markdown_lines.append(f"![{caption}]({local_path})")
+                else:
+                    # 如果下载失败，使用在线URL作为备用
+                    markdown_lines.append(f"![{caption}](https://internal-api-drive.stream.feishu.cn/space/api/box/stream/download/preview/?file_token={token})")
+            else:
+                # 如果没有访问令牌，使用在线URL
+                markdown_lines.append(f"![{caption}](https://internal-api-drive.stream.feishu.cn/space/api/box/stream/download/preview/?file_token={token})")
+        else:
+            # 如果没有token，添加占位符
+            markdown_lines.append("![图片](图片占位符)")
+        
+        BaseHandler.add_empty_line(markdown_lines)
