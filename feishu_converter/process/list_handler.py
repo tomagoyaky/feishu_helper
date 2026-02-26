@@ -42,7 +42,6 @@ class ListHandler(BaseHandler):
         重置有序列表序号计数器
         """
         ListHandler._ordered_list_index = 1
-        print("有序列表序号计数器已重置为 1")
     
     @staticmethod
     def process_ordered_list(block: Dict[str, Any], markdown_lines: List[str]):

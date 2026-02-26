@@ -57,6 +57,7 @@ class MarkdownAdapter(IFormatAdapter):
         初始化Markdown适配器
         """
         self.logger = logging.getLogger(__name__)
+        self.output_dir = None  # 输出目录，用于保存图片
     
     def convert(self, content: Dict[str, Any], output_path: str) -> bool:
         """
@@ -67,6 +68,15 @@ class MarkdownAdapter(IFormatAdapter):
         :return: 转换是否成功
         """
         self.logger.info(f"开始将文档内容转换为Markdown: {output_path}")
+        
+        # 设置输出目录，用于保存图片
+        import os
+        self.output_dir = os.path.dirname(os.path.abspath(output_path))
+        self.output_filename = os.path.splitext(os.path.basename(output_path))[0]
+        
+        # 设置图片处理器的输出目录
+        from ..process.image_handler import ImageHandler
+        ImageHandler.set_output_dir(self.output_dir, self.output_filename)
         
         try:
             # 处理文档内容为Markdown格式
@@ -204,6 +214,8 @@ class MarkdownAdapter(IFormatAdapter):
                 self._process_callout_with_children(
                     block, markdown_lines, block_index, parent_children_map, all_blocks
                 )
+                # 高亮块已处理子块内容，跳过子块递归处理
+                continue
             # 会话卡片
             elif block_type == 20:  # 会话卡片
                 ChatCardHandler.process_chat_card(block, markdown_lines)
@@ -237,19 +249,29 @@ class MarkdownAdapter(IFormatAdapter):
             # 电子表格（外部资源，需要权限检查）
             elif block_type == 30:  # 电子表格
                 SheetHandler.process_sheet(block, markdown_lines)
-            # 表格相关（内部资源，不需要权限检查）
-            elif 31 <= block_type <= 32:  # 表格相关 (table, table_cell)
+            # 表格块（内部资源，不需要权限检查）
+            elif block_type == 31:  # 表格 (table)
                 TableHandler.process_table(block, markdown_lines, all_blocks)
+                # 表格块已处理所有单元格内容，跳过子块递归处理
+                continue
+            # 表格单元格 (block_type == 32) 不单独处理，由表格块统一处理
+            elif block_type == 32:  # 表格单元格 (table_cell)
+                # 跳过，已由表格块处理，且跳过子块递归处理
+                continue
             # 视图块
             elif block_type == 33:  # 视图
                 self._process_view_with_children(
                     block, markdown_lines, block_index, parent_children_map, all_blocks
                 )
+                # 视图块已处理子块内容，跳过子块递归处理
+                continue
             # 引用容器
             elif block_type == 34:  # 引用容器
                 self._process_quote_container_with_children(
                     block, markdown_lines, block_index, parent_children_map, all_blocks
                 )
+                # 引用容器已处理子块内容，跳过子块递归处理
+                continue
             # 任务
             elif block_type == 35:  # 任务
                 TaskHandler.process_task(block, markdown_lines)
@@ -371,13 +393,26 @@ class MarkdownAdapter(IFormatAdapter):
             child_blocks = parent_children_map[block_id]
             child_lines = []
             for child_block in child_blocks:
-                self._process_single_block(
-                    child_block, 
-                    child_lines, 
-                    block_index, 
-                    parent_children_map, 
-                    all_blocks
-                )
+                child_type = child_block.get('block_type')
+                # 如果子块是引用块(block_type == 15)，直接提取内容，不再添加引用前缀
+                # 因为外层已经会添加引用前缀
+                if child_type == 15:
+                    elements = child_block.get('quote', {}).get('elements', [])
+                    text_parts = []
+                    for element in elements:
+                        content = BaseHandler.extract_text_with_style(element)
+                        if content:
+                            text_parts.append(content)
+                    if text_parts:
+                        child_lines.append(''.join(text_parts))
+                else:
+                    self._process_single_block(
+                        child_block, 
+                        child_lines, 
+                        block_index, 
+                        parent_children_map, 
+                        all_blocks
+                    )
             
             # 将子块内容用引用格式包裹
             for line in child_lines:
@@ -481,8 +516,14 @@ class MarkdownAdapter(IFormatAdapter):
             DividerHandler.process_divider(markdown_lines)
         elif block_type == 27:
             ImageHandler.process_image(block, markdown_lines)
-        elif 31 <= block_type <= 32:
+        elif block_type == 31:  # 表格
             TableHandler.process_table(block, markdown_lines, all_blocks)
+            # 表格块已处理所有单元格内容，跳过子块递归处理
+            return
+        # 表格单元格 (block_type == 32) 不单独处理，由表格块统一处理
+        elif block_type == 32:  # 表格单元格
+            # 跳过，已由表格块处理
+            return
         else:
             # 对于其他类型，简单记录
             OtherHandler.process_other(block, markdown_lines)

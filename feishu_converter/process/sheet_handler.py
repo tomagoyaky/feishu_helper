@@ -60,6 +60,16 @@ class SheetHandler(BaseHandler):
                             if isinstance(cell, str):
                                 # 直接使用字符串值，不处理样式
                                 row_str.append(cell)
+                            elif isinstance(cell, list):
+                                # 如果单元格是列表（飞书电子表格的富文本格式）
+                                # 每个元素包含 segmentStyle 和 text 字段
+                                text_parts = []
+                                for item in cell:
+                                    if isinstance(item, dict) and 'text' in item:
+                                        text_parts.append(str(item['text']))
+                                    elif isinstance(item, str):
+                                        text_parts.append(item)
+                                row_str.append(''.join(text_parts))
                             elif isinstance(cell, dict):
                                 # 如果单元格是字典（如嵌入图像或其他内容），提取文本内容
                                 if 'text' in cell:
