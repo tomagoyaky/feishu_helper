@@ -8,6 +8,7 @@ from typing import Dict, Any
 from .fetchers.document_fetcher import DocumentFetcher
 from .adapters.pdf_adapter import PdfAdapter
 from .adapters.markdown_adapter import MarkdownAdapter
+from .api import FeishuDocAPI
 
 
 class FeishuConverter:
@@ -23,6 +24,7 @@ class FeishuConverter:
         self.document_fetcher = DocumentFetcher()
         self.pdf_adapter = PdfAdapter()
         self.markdown_adapter = MarkdownAdapter()
+        self.api = FeishuDocAPI()
         self.logger = logging.getLogger(__name__)
     
     def convert(self, document_url: str, output_format: str, output_path: str) -> bool:
@@ -36,17 +38,33 @@ class FeishuConverter:
         """
         self.logger.info(f"开始转换文档: {document_url} -> {output_path} ({output_format})")
         
-        # 获取文档内容
-        self.logger.debug(f"开始获取文档信息: {document_url}")
-        document_content = self.document_fetcher.fetch_document_content(document_url)
+        # 从URL中提取文档ID并检查文档类型
+        doc_id = self.document_fetcher.extract_document_id(document_url)
+        if not doc_id:
+            self.logger.error(f"无法从URL提取文档ID: {document_url}")
+            return False
+        
+        # 检查文档状态和类型
+        doc_status = self.api.check_document_status(doc_id)
+        if not doc_status["accessible"]:
+            error_msg = doc_status.get("error", "文档不可访问")
+            self.logger.error(f"文档不可访问: {error_msg}")
+            return False
+        
+        doc_type = doc_status.get("doc_type", "docx")
+        self.logger.info(f"文档类型: {doc_type}, 标题: {doc_status.get('title', 'Unknown')}")
+        
+        # 根据文档类型获取内容
+        if doc_type == "sheet":
+            # 获取电子表格内容
+            document_content = self.document_fetcher.fetch_spreadsheet_content(document_url)
+        else:
+            # 获取普通文档内容
+            document_content = self.document_fetcher.fetch_document_content(document_url)
         
         if not document_content:
             self.logger.error("获取文档内容失败")
             return False
-        
-        # 根据文档信息设置标题
-        doc_title = document_content.get('document_info', {}).get('title', 'Unknown')
-        self.logger.info(f"文档信息 - 标题: {doc_title}, 版本: {document_content['document_info'].get('revision_id', 'Unknown')}, 文档ID: {document_content['document_info'].get('document_id', 'Unknown')}")
         
         # 根据格式选择适配器
         self.logger.info(f"开始转换为 {output_format} 格式...")

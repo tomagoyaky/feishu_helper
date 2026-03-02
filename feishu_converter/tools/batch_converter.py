@@ -212,44 +212,61 @@ class BatchConverter:
     ) -> Tuple[str, bool, Optional[str]]:
         """
         转换单个文档
-
+        
         :param token: 文档token
         :param index: 当前索引
         :param total: 总数
         :param doc_type: 文档类型
         :return: (token, 是否成功, 输出文件路径或错误信息)
         """
-        url = self.token_to_url(token, doc_type)
-
-        # 获取文档标题
-        title = None
-        if self.use_title_as_filename:
+        # 先检查文档状态
+        doc_status = self.api.check_document_status(token)
+        
+        if not doc_status["accessible"]:
+            error_msg = doc_status.get("error", "文档不可访问")
+            self.logger.warning(f"[{index}/{total}] 文档不可访问: {token[:20]} - {error_msg}")
+            return token, False, error_msg
+        
+        # 获取文档标题（优先使用状态检查返回的标题）
+        title = doc_status.get("title")
+        actual_doc_type = doc_status.get("doc_type", doc_type)
+        
+        # 根据实际文档类型生成URL
+        if actual_doc_type in ["sheet", "spreadsheet"]:
+            url = self.token_to_url(token, "sheet") if hasattr(self, 'SHEET_URL_TEMPLATE') else f"https://r3c0qt6yjw.feishu.cn/sheets/{token}"
+        elif actual_doc_type in ["bitable"]:
+            url = f"https://r3c0qt6yjw.feishu.cn/base/{token}"
+        else:
+            url = self.token_to_url(token, doc_type)
+        
+        # 如果状态检查没有返回标题，尝试获取
+        if not title and self.use_title_as_filename:
             title = self.get_document_title(token, doc_type)
-
+        
         # 生成文件名
         filename = self.generate_filename(token, title)
         output_path = self.output_dir / f"{filename}.{self.output_format}"
-
+        
         # 检查是否已存在
         if output_path.exists():
             self.logger.info(f"[{index}/{total}] 已存在，跳过: {filename}")
             return token, True, str(output_path)
-
+        
         display_name = title if title else token[:20]
-        self.logger.info(f"[{index}/{total}] 正在转换: {display_name}")
-
+        self.logger.info(f"[{index}/{total}] 正在转换: {display_name} (类型: {actual_doc_type})")
+        
         try:
             # 添加延迟避免请求过快
             if self.delay > 0:
                 time.sleep(self.delay)
-
+            
             # 执行转换
             success = self.converter.convert(
                 document_url=url,
                 output_format=self.output_format,
                 output_path=str(output_path)
             )
-
+            
             if success and output_path.exists():
                 self.logger.info(f"[{index}/{total}] 转换成功: {filename}")
                 return token, True, str(output_path)
@@ -257,7 +274,7 @@ class BatchConverter:
                 error_msg = "转换失败或输出文件未生成"
                 self.logger.error(f"[{index}/{total}] 转换失败: {filename} - {error_msg}")
                 return token, False, error_msg
-
+        
         except Exception as e:
             error_msg = str(e)
             self.logger.error(f"[{index}/{total}] 转换异常: {filename} - {error_msg}")

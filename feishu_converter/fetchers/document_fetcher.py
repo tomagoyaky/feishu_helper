@@ -66,14 +66,16 @@ class DocumentFetcher:
         :return: 文档ID
         """
         try:
-            # 飞书文档URL格式通常为 https://xxx.feishu.cn/wiki/文档ID 或 https://xxx.feishu.cn/docx/文档ID
-            # 例如：https://r3c0qt6yjw.feishu.cn/wiki/WIHiwPrOaiXA0Rk3VjCc8m7snoe
             import re
-            # 使用正则表达式匹配文档ID部分
             wiki_pattern = r'/wiki/([a-zA-Z0-9_-]+)'
             docx_pattern = r'/docx/([a-zA-Z0-9_-]+)'
+            sheet_pattern = r'/sheets/([a-zA-Z0-9_-]+)'
+            base_pattern = r'/base/([a-zA-Z0-9_-]+)'
             
-            match = re.search(wiki_pattern, document_url) or re.search(docx_pattern, document_url)
+            match = (re.search(wiki_pattern, document_url) or 
+                     re.search(docx_pattern, document_url) or
+                     re.search(sheet_pattern, document_url) or
+                     re.search(base_pattern, document_url))
             
             if match:
                 return match.group(1)
@@ -83,6 +85,73 @@ class DocumentFetcher:
         except Exception as e:
             self.logger.error(f"提取文档ID失败: {str(e)}")
             return None
+    
+    def fetch_spreadsheet_content(self, spreadsheet_url: str) -> Optional[Dict[str, Any]]:
+        """
+        获取电子表格内容
+        
+        :param spreadsheet_url: 电子表格URL
+        :return: 电子表格内容
+        """
+        spreadsheet_token = self.extract_document_id(spreadsheet_url)
+        if not spreadsheet_token:
+            self.logger.error(f"无法从URL提取电子表格token: {spreadsheet_url}")
+            return None
+        
+        self.logger.debug(f"开始获取电子表格内容: {spreadsheet_url}")
+        
+        # 获取电子表格基本信息
+        spreadsheet_info = self.api.get_spreadsheet_info(spreadsheet_token)
+        if not spreadsheet_info:
+            self.logger.error(f"获取电子表格信息失败: {spreadsheet_token}")
+            return None
+        
+        spreadsheet = spreadsheet_info.get('spreadsheet', {})
+        
+        # 获取所有工作表
+        sheets_data = self.api.get_spreadsheet_sheets(spreadsheet_token)
+        if not sheets_data:
+            self.logger.error(f"获取工作表列表失败: {spreadsheet_token}")
+            return None
+        
+        sheets = sheets_data.get('sheets', [])
+        
+        # 获取每个工作表的数据
+        all_sheets_data = []
+        for sheet in sheets:
+            sheet_id = sheet.get('sheet_id')
+            sheet_title = sheet.get('title', '未命名工作表')
+            
+            # 获取工作表数据
+            sheet_data = self.api.get_spreadsheet_data(spreadsheet_token, sheet_id)
+            if sheet_data:
+                values = None
+                if 'valueRange' in sheet_data:
+                    values = sheet_data['valueRange'].get('values', [])
+                elif 'values' in sheet_data:
+                    values = sheet_data['values']
+                
+                all_sheets_data.append({
+                    'sheet_id': sheet_id,
+                    'title': sheet_title,
+                    'values': values or []
+                })
+                self.logger.info(f"获取工作表数据成功: {sheet_title}")
+        
+        # 组合电子表格内容
+        spreadsheet_content = {
+            "document_info": {
+                "document_id": spreadsheet_token,
+                "title": spreadsheet.get('title', '未命名电子表格'),
+                "document_type": "sheet"
+            },
+            "spreadsheet_info": spreadsheet,
+            "sheets": all_sheets_data
+        }
+        
+        self.logger.info(f"成功获取电子表格内容: {spreadsheet.get('title', 'Unknown')}")
+        
+        return spreadsheet_content
     
     def _fetch_spreadsheet_data(self, blocks: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

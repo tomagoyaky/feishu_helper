@@ -39,8 +39,12 @@ def validate_url(url: str) -> bool:
         'feishu.cn/docx/',
         'feishu.cn/wiki/',
         'feishu.cn/docs/',
+        'feishu.cn/sheets/',
+        'feishu.cn/base/',
         'larksuite.com/docx/',
         'larksuite.com/wiki/',
+        'larksuite.com/sheets/',
+        'larksuite.com/base/',
     ]
     return any(pattern in url for pattern in valid_patterns)
 
@@ -78,7 +82,7 @@ def main():
     
     parser.add_argument(
         'url',
-        help='飞书文档链接 (支持 docx, wiki, docs 格式)'
+        help='飞书文档链接 (支持 docx, wiki, docs, sheets, base 格式)'
     )
     
     parser.add_argument(
@@ -141,6 +145,8 @@ def main():
         print("  - https://xxx.feishu.cn/docx/xxx", file=sys.stderr)
         print("  - https://xxx.feishu.cn/wiki/xxx", file=sys.stderr)
         print("  - https://xxx.feishu.cn/docs/xxx", file=sys.stderr)
+        print("  - https://xxx.feishu.cn/sheets/xxx", file=sys.stderr)
+        print("  - https://xxx.feishu.cn/base/xxx", file=sys.stderr)
         sys.exit(1)
     
     # 获取应用凭证

@@ -898,3 +898,145 @@ class FeishuDocAPI:
                 except:
                     self.logger.error(f"响应内容: {e.response.text}")
             return None
+
+    def check_document_status(self, token: str) -> Dict[str, Any]:
+        """
+        检查文档状态，判断文档是否存在、可访问以及类型
+        
+        :param token: 文档token
+        :return: 状态信息字典，包含:
+            - accessible: 是否可访问
+            - doc_type: 文档类型 (docx, sheet, bitable, wiki, unknown)
+            - title: 文档标题
+            - error: 错误信息
+        """
+        result = {
+            "accessible": False,
+            "doc_type": "unknown",
+            "title": None,
+            "error": None
+        }
+        
+        access_token = self.get_access_token()
+        if not access_token:
+            result["error"] = "无法获取访问令牌"
+            return result
+        
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8"
+        }
+        
+        # 1. 尝试作为 docx 文档检查
+        try:
+            url = f"{self.BASE_URL}/docx/v1/documents/{token}"
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                resp_data = response.json()
+                if resp_data.get("code") == 0:
+                    doc_info = resp_data.get("data", {}).get("document", {})
+                    result["accessible"] = True
+                    result["doc_type"] = "docx"
+                    result["title"] = doc_info.get("title")
+                    return result
+            elif response.status_code == 404:
+                pass
+            else:
+                resp_data = response.json() if response.text else {}
+                error_code = resp_data.get("code")
+                error_msg = resp_data.get("msg", "")
+                
+                if error_code in [99991663, 99991661]:
+                    result["error"] = f"无权限访问: {error_msg}"
+                    result["doc_type"] = "docx"
+                    return result
+        except Exception as e:
+            self.logger.debug(f"检查docx文档失败: {e}")
+        
+        # 2. 尝试作为电子表格检查
+        try:
+            url = f"{self.BASE_URL}/sheets/v3/spreadsheets/{token}"
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                resp_data = response.json()
+                if resp_data.get("code") == 0:
+                    sheet_info = resp_data.get("data", {}).get("spreadsheet", {})
+                    result["accessible"] = True
+                    result["doc_type"] = "sheet"
+                    result["title"] = sheet_info.get("title")
+                    return result
+            elif response.status_code == 404:
+                pass
+            else:
+                resp_data = response.json() if response.text else {}
+                error_code = resp_data.get("code")
+                error_msg = resp_data.get("msg", "")
+                
+                if error_code in [99991663, 99991661]:
+                    result["error"] = f"无权限访问: {error_msg}"
+                    result["doc_type"] = "sheet"
+                    return result
+        except Exception as e:
+            self.logger.debug(f"检查电子表格失败: {e}")
+        
+        # 3. 尝试作为多维表格检查
+        try:
+            url = f"{self.BASE_URL}/bitable/v1/apps/{token}"
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                resp_data = response.json()
+                if resp_data.get("code") == 0:
+                    app_info = resp_data.get("data", {}).get("app", {})
+                    result["accessible"] = True
+                    result["doc_type"] = "bitable"
+                    result["title"] = app_info.get("name")
+                    return result
+            elif response.status_code == 404:
+                pass
+            else:
+                resp_data = response.json() if response.text else {}
+                error_code = resp_data.get("code")
+                error_msg = resp_data.get("msg", "")
+                
+                if error_code in [99991663, 99991661]:
+                    result["error"] = f"无权限访问: {error_msg}"
+                    result["doc_type"] = "bitable"
+                    return result
+        except Exception as e:
+            self.logger.debug(f"检查多维表格失败: {e}")
+        
+        # 4. 尝试作为 wiki 知识库节点检查
+        try:
+            url = f"{self.BASE_URL}/wiki/v2/spaces/get_node?token={token}"
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                resp_data = response.json()
+                if resp_data.get("code") == 0:
+                    node_info = resp_data.get("data", {}).get("node", {})
+                    result["accessible"] = True
+                    result["doc_type"] = "wiki"
+                    result["title"] = node_info.get("title")
+                    obj_type = node_info.get("obj_type", "")
+                    if obj_type:
+                        result["doc_type"] = obj_type.lower()
+                    return result
+            elif response.status_code == 404:
+                pass
+            else:
+                resp_data = response.json() if response.text else {}
+                error_code = resp_data.get("code")
+                error_msg = resp_data.get("msg", "")
+                
+                if error_code in [99991663, 99991661]:
+                    result["error"] = f"无权限访问: {error_msg}"
+                    result["doc_type"] = "wiki"
+                    return result
+        except Exception as e:
+            self.logger.debug(f"检查wiki节点失败: {e}")
+        
+        result["error"] = "文档不存在或已被删除"
+        return result

@@ -79,8 +79,15 @@ class MarkdownAdapter(IFormatAdapter):
         ImageHandler.set_output_dir(self.output_dir, self.output_filename)
         
         try:
-            # 处理文档内容为Markdown格式
-            markdown_content = self._process_blocks(content)
+            # 检查文档类型
+            doc_type = content.get('document_info', {}).get('document_type', 'docx')
+            
+            if doc_type == 'sheet':
+                # 处理电子表格
+                markdown_content = self._process_spreadsheet(content)
+            else:
+                # 处理普通文档
+                markdown_content = self._process_blocks(content)
             
             # 写入文件
             with open(output_path, 'w', encoding='utf-8') as f:
@@ -91,6 +98,71 @@ class MarkdownAdapter(IFormatAdapter):
         except Exception as e:
             self.logger.error(f"Markdown转换失败: {str(e)}")
             return False
+    
+    def _process_spreadsheet(self, content: Dict[str, Any]) -> str:
+        """
+        处理电子表格内容为Markdown格式
+        
+        :param content: 电子表格内容
+        :return: Markdown字符串
+        """
+        markdown_lines = []
+        
+        # 添加标题
+        doc_info = content.get('document_info', {})
+        title = doc_info.get('title', '未命名电子表格')
+        markdown_lines.append(f"# {title}")
+        BaseHandler.add_empty_line(markdown_lines)
+        
+        # 处理每个工作表
+        sheets = content.get('sheets', [])
+        for sheet in sheets:
+            sheet_title = sheet.get('title', '未命名工作表')
+            values = sheet.get('values', [])
+            
+            # 添加工作表标题
+            markdown_lines.append(f"## {sheet_title}")
+            BaseHandler.add_empty_line(markdown_lines)
+            
+            if values:
+                # 将电子表格数据转换为Markdown表格
+                for i, row in enumerate(values):
+                    row_str = []
+                    for cell in row:
+                        if isinstance(cell, str):
+                            row_str.append(cell)
+                        elif isinstance(cell, list):
+                            text_parts = []
+                            for item in cell:
+                                if isinstance(item, dict) and 'text' in item:
+                                    text_parts.append(str(item['text']))
+                                elif isinstance(item, str):
+                                    text_parts.append(item)
+                            row_str.append(''.join(text_parts))
+                        elif isinstance(cell, dict):
+                            if 'text' in cell:
+                                row_str.append(str(cell['text']))
+                            elif 'fileToken' in cell:
+                                row_str.append("[文件]")
+                            else:
+                                row_str.append(str(cell))
+                        else:
+                            row_str.append(str(cell) if cell is not None else "")
+                    
+                    # 转义表格分隔符
+                    row_str = [cell.replace('|', '\\|') if cell else ' ' for cell in row_str]
+                    markdown_lines.append("| " + " | ".join(row_str) + " |")
+                    
+                    # 如果是第一行，添加分隔行
+                    if i == 0:
+                        markdown_lines.append("| " + " | ".join(['---'] * len(row_str)) + " |")
+                
+                BaseHandler.add_empty_line(markdown_lines)
+            else:
+                markdown_lines.append("*此工作表暂无数据*")
+                BaseHandler.add_empty_line(markdown_lines)
+        
+        return '\n'.join(markdown_lines)
     
     def _process_blocks(self, content: Dict[str, Any]) -> str:
         """
